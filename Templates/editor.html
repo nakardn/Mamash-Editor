@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Text Editor - {{ document.metadata.title }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .editor-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+            min-height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            font-size: 1.8em;
+            font-weight: 300;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        /* This style is for the dark header */
+        .header .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .toolbar {
+            background: #f8f9fa;
+            padding: 15px 30px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        /* <!-- STYLING FIX -->: Styles for secondary buttons specifically inside the light toolbar */
+        .toolbar .btn-secondary {
+            background: #e2e6ea;
+            color: #343a40;
+            border: 1px solid #dae0e5;
+        }
+
+        /* <!-- STYLING FIX -->: Hover effect for toolbar buttons to ensure they feel interactive */
+        .toolbar .btn-secondary:hover {
+            background: #d3d9df;
+            color: #212529;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        .toolbar-left {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .toolbar-right {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            font-size: 14px;
+            color: #6c757d;
+        }
+        
+        .search-replace {
+            display: none;
+            background: #fff3cd;
+            padding: 15px 30px;
+            border-bottom: 1px solid #ffeaa7;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .search-replace.active {
+            display: flex;
+        }
+        
+        .search-input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+        
+        .editor-wrapper {
+            flex: 1;
+            display: flex;
+            position: relative;
+            background: #1e1e1e;
+        }
+        
+        .line-numbers {
+            background: #252526;
+            border-right: 1px solid #3e3e42;
+            padding: 20px 15px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #858585;
+            user-select: none;
+            min-width: 60px;
+            text-align: right;
+            white-space: pre;
+            overflow: hidden;
+        }
+        
+        .editor-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .textarea-wrapper {
+            flex: 1;
+            position: relative;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            border: none;
+            resize: none;
+            outline: none;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            tab-size: 4;
+            direction: ltr; /* Default direction */
+        }
+        
+        textarea::placeholder {
+            color: #6a9955;
+            font-style: italic;
+        }
+        
+        /* CSS styles for RTL mode */
+        .editor-wrapper.rtl-mode {
+            flex-direction: row-reverse; /* Flip the editor layout */
+        }
+
+        .line-numbers.rtl-mode {
+            border-right: none;
+            border-left: 1px solid #3e3e42; /* Move border to the other side */
+            text-align: left; /* Keep line numbers aligned nicely */
+        }
+
+        textarea.rtl-mode {
+            direction: rtl; /* Set text direction to right-to-left */
+            text-align: right; /* Align text to the right */
+        }
+        
+        .status-bar {
+            background: #007acc;
+            color: white;
+            padding: 8px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+        
+        .status-left {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .status-right {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .auto-save-indicator {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .auto-save-indicator.saved {
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+        }
+        
+        .auto-save-indicator.saving {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+        
+        .auto-save-indicator.error {
+            background: rgba(220, 53, 69, 0.2);
+            color: #dc3545;
+        }
+        
+        .minimap {
+            width: 100px;
+            background: #252526;
+            border-left: 1px solid #3e3e42;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .minimap-content {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 2px;
+            line-height: 2px;
+            color: #d4d4d4;
+            padding: 5px;
+            word-break: break-all;
+            opacity: 0.6;
+        }
+        
+        .shortcuts-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+        
+        .shortcuts-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .shortcut-key {
+            background: #f8f9fa;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .header {
+                padding: 15px 20px;
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .header h1 {
+                font-size: 1.5em;
+            }
+            
+            .toolbar {
+                padding: 10px 20px;
+            }
+            
+            .line-numbers {
+                min-width: 50px;
+                padding: 20px 10px;
+            }
+            
+            .textarea-wrapper textarea {
+                padding: 15px;
+            }
+            
+            .minimap {
+                display: none;
+            }
+            
+            .toolbar-right {
+                display: none;
+            }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="editor-container fade-in">
+        <!-- Header -->
+        <div class="header">
+            <h1>
+                <span>📝</span>
+                <span>{{ document.metadata.title }}</span>
+            </h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="toggleShortcuts()">
+                    ⌨️ Shortcuts
+                </button>
+                <a href="/" class="btn btn-secondary">
+                    📁 Dashboard
+                </a>
+                <button class="btn btn-danger" onclick="deleteDocument()">
+                    🗑️ Delete
+                </button>
+            </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <button class="btn btn-primary" onclick="saveDocument()">
+                    💾 Save
+                </button>
+                <button class="btn btn-secondary" onclick="toggleSearch()">
+                    🔍 Find & Replace
+                </button>
+                <button class="btn btn-secondary" onclick="formatDocument()">
+                    ✨ Format
+                </button>
+                <button class="btn btn-secondary" onclick="toggleRTL()">
+                    ⇄ RTL/LTR
+                </button>
+                <select id="syntaxMode" onchange="changeSyntaxMode()" class="search-input">
+                    <option value="plaintext">Plain Text</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="python">Python</option>
+                    <option value="html">HTML</option>
+                    <option value="css">CSS</option>
+                    <option value="json">JSON</option>
+                    <option value="markdown">Markdown</option>
+                </select>
+            </div>
+            <div class="toolbar-right">
+                <span id="autoSaveIndicator" class="auto-save-indicator saved">✓ Saved</span>
+                <span>Modified: {{ document.metadata.modified[:19].replace('T', ' ') }}</span>
+            </div>
+        </div>
+
+        <!-- Search & Replace Bar -->
+        <div id="searchReplace" class="search-replace">
+            <input type="text" id="searchInput" class="search-input" placeholder="Find..." onkeyup="performSearch()">
+            <input type="text" id="replaceInput" class="search-input" placeholder="Replace with...">
+            <button class="btn btn-primary" onclick="replaceAll()">Replace All</button>
+            <button class="btn btn-secondary" onclick="toggleSearch()">×</button>
+        </div>
+
+        <!-- Editor -->
+        <div class="editor-wrapper">
+            <div class="line-numbers" id="lineNumbers">1</div>
+            <div class="editor-main">
+                <div class="textarea-wrapper">
+                    <textarea 
+                        id="textArea" 
+                        placeholder="Start coding or writing..."
+                        spellcheck="false"
+                        autocomplete="off"
+                        autocorrect="off"
+                        autocapitalize="off"
+                    >{{ document.content }}</textarea>
+                </div>
+            </div>
+            <div class="minimap">
+                <div class="minimap-content" id="minimapContent"></div>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-left">
+                <span id="cursorPosition">Ln 1, Col 1</span>
+                <span id="selectionInfo"></span>
+            </div>
+            <div class="status-right">
+                <span id="wordCount">Words: 0</span>
+                <span id="charCount">Characters: {{ document.content|length }}</span>
+                <span id="lineCount">Lines: {{ document.content.split('\n')|length }}</span>
+                <span>Size: {{ "%.1f"|format(document.metadata.size / 1024) }} KB</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shortcuts Modal -->
+    <div id="shortcutsModal" class="shortcuts-modal" onclick="closeModal(event)">
+        <div class="shortcuts-content">
+            <h2>Keyboard Shortcuts</h2>
+            <div class="shortcut-item">
+                <span>Save Document</span>
+                <span class="shortcut-key">Ctrl + S</span>
+            </div>
+            <div class="shortcut-item">
+                <span>Find & Replace</span>
+                <span class="shortcut-key">Ctrl + F</span>
+            </div>
+            <div class="shortcut-item">
+                <span>Select All</span>
+                <span class="shortcut-key">Ctrl + A</span>
+            </div>
+            <div class="shortcut-item">
+                <span>Undo</span>
+                <span class="shortcut-key">Ctrl + Z</span>
+            </div>
+            <div class="shortcut-item">
+                <span>Redo</span>
+                <span class="shortcut-key">Ctrl + Y</span>
+            </div>
+            <div class="shortcut-item">
+                <span>Duplicate Line</span>
+                <span class="shortcut-key">Ctrl + D</span>
+            </div>
+            <div class="shortcut-item">
+                <span>Move Line Up</span>
+                <span class="shortcut-key">Alt + ↑</span>
+            </div>
+            <div class="shortcut-item">
+                <span>Move Line Down</span>
+                <span class="shortcut-key">Alt + ↓</span>
+            </div>
+            <div class="shortcut-item">
+                <span>Comment Toggle</span>
+                <span class="shortcut-key">Ctrl + /</span>
+            </div>
+            <div class="shortcut-item">
+                <span>Format Document</span>
+                <span class="shortcut-key">Shift + Alt + F</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const textArea = document.getElementById('textArea');
+        const lineNumbers = document.getElementById('lineNumbers');
+        const cursorPosition = document.getElementById('cursorPosition');
+        const selectionInfo = document.getElementById('selectionInfo');
+        const wordCount = document.getElementById('wordCount');
+        const charCount = document.getElementById('charCount');
+        const lineCount = document.getElementById('lineCount');
+        const minimapContent = document.getElementById('minimapContent');
+        const autoSaveIndicator = document.getElementById('autoSaveIndicator');
+        const docId = '{{ doc_id }}';
+        
+        let autoSaveTimer;
+        let isModified = false;
+        
+        // Initialize editor
+        function initializeEditor() {
+            updateLineNumbers();
+            updateStats();
+            updateMinimap();
+            
+            // Auto-save every 30 seconds
+            setInterval(autoSave, 30000);
+        }
+        
+        // Update line numbers
+        function updateLineNumbers() {
+            const lines = textArea.value.split('\n');
+            const lineNumbersArray = [];
+            
+            for (let i = 1; i <= lines.length; i++) {
+                lineNumbersArray.push(i);
+            }
+            
+            lineNumbers.textContent = lineNumbersArray.join('\n');
+        }
+        
+        // Update statistics
+        function updateStats() {
+            const content = textArea.value;
+            const lines = content.split('\n');
+            const words = content.trim() ? content.trim().split(/\s+/).length : 0;
+            
+            charCount.textContent = `Characters: ${content.length}`;
+            wordCount.textContent = `Words: ${words}`;
+            lineCount.textContent = `Lines: ${lines.length}`;
+        }
+        
+        // Update cursor position
+        function updateCursorPosition() {
+            const cursorPos = textArea.selectionStart;
+            const textBeforeCursor = textArea.value.substring(0, cursorPos);
+            const lines = textBeforeCursor.split('\n');
+            const currentLine = lines.length;
+            const currentCol = lines[lines.length - 1].length + 1;
+            
+            cursorPosition.textContent = `Ln ${currentLine}, Col ${currentCol}`;
+            
+            // Update selection info
+            const selectionLength = textArea.selectionEnd - textArea.selectionStart;
+            if (selectionLength > 0) {
+                selectionInfo.textContent = `(${selectionLength} selected)`;
+            } else {
+                selectionInfo.textContent = '';
+            }
+        }
+        
+        // Update minimap
+        function updateMinimap() {
+            const content = textArea.value;
+            const lines = content.split('\n');
+            const preview = lines.slice(0, 200).join('\n'); // Show first 200 lines
+            minimapContent.textContent = preview;
+        }
+        
+        // Sync scroll between textarea and line numbers
+        function syncScroll() {
+            lineNumbers.scrollTop = textArea.scrollTop;
+        }
+        
+        // Save document
+        async function saveDocument() {
+            const content = textArea.value;
+            autoSaveIndicator.className = 'auto-save-indicator saving';
+            autoSaveIndicator.textContent = '💾 Saving...';
+            
+            try {
+                const response = await fetch(`/api/save/${docId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ content: content })
+                });
+                
+                if (response.ok) {
+                    autoSaveIndicator.className = 'auto-save-indicator saved';
+                    autoSaveIndicator.textContent = '✓ Saved';
+                    isModified = false;
+                } else {
+                    throw new Error('Save failed');
+                }
+            } catch (error) {
+                autoSaveIndicator.className = 'auto-save-indicator error';
+                autoSaveIndicator.textContent = '❌ Error';
+                console.error('Save error:', error);
+            }
+        }
+        
+        // Auto-save
+        function autoSave() {
+            if (isModified) {
+                saveDocument();
+            }
+        }
+        
+        // Mark as modified
+        function markModified() {
+            if (!isModified) {
+                isModified = true;
+                autoSaveIndicator.className = 'auto-save-indicator saving';
+                autoSaveIndicator.textContent = '● Modified';
+            }
+        }
+        
+        // Toggle search and replace
+        function toggleSearch() {
+            const searchReplace = document.getElementById('searchReplace');
+            searchReplace.classList.toggle('active');
+            if (searchReplace.classList.contains('active')) {
+                document.getElementById('searchInput').focus();
+            }
+        }
+        
+        // Perform search
+        function performSearch() {
+            const searchTerm = document.getElementById('searchInput').value;
+            if (searchTerm) {
+                const content = textArea.value;
+                const regex = new RegExp(searchTerm, 'gi');
+                const matches = content.match(regex);
+                if (matches) {
+                    console.log(`Found ${matches.length} matches`);
+                }
+            }
+        }
+        
+        // Replace all occurrences
+        function replaceAll() {
+            const searchTerm = document.getElementById('searchInput').value;
+            const replaceTerm = document.getElementById('replaceInput').value;
+            
+            if (searchTerm) {
+                const content = textArea.value;
+                const regex = new RegExp(searchTerm, 'g');
+                const newContent = content.replace(regex, replaceTerm);
+                
+                if (newContent !== content) {
+                    textArea.value = newContent;
+                    updateLineNumbers();
+                    updateStats();
+                    updateMinimap();
+                    markModified();
+                }
+            }
+        }
+        
+        // Format document
+        function formatDocument() {
+            const content = textArea.value;
+            let formatted = content;
+            
+            // Basic formatting: fix indentation and remove extra whitespace
+            const lines = content.split('\n');
+            const formattedLines = lines.map(line => line.trim());
+            formatted = formattedLines.join('\n');
+            
+            // Remove multiple consecutive empty lines
+            formatted = formatted.replace(/\n\n\n+/g, '\n\n');
+            
+            if (formatted !== content) {
+                textArea.value = formatted;
+                updateLineNumbers();
+                updateStats();
+                updateMinimap();
+                markModified();
+            }
+        }
+        
+        // Function to toggle RTL mode
+        function toggleRTL() {
+            const editorWrapper = document.querySelector('.editor-wrapper');
+            
+            // Toggle the master RTL class on the wrapper
+            editorWrapper.classList.toggle('rtl-mode');
+            
+            // Also toggle the class on the textarea and line numbers directly
+            textArea.classList.toggle('rtl-mode');
+            lineNumbers.classList.toggle('rtl-mode');
+        }
+        
+        // Change syntax highlighting mode
+        function changeSyntaxMode() {
+            const mode = document.getElementById('syntaxMode').value;
+            // This could be extended to apply syntax highlighting
+            console.log('Syntax mode changed to:', mode);
+        }
+        
+        // Delete document
+        async function deleteDocument() {
+            if (confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
+                try {
+                    const response = await fetch(`/delete/${docId}`, {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        window.location.href = '/';
+                    } else {
+                        alert('Failed to delete document');
+                    }
+                } catch (error) {
+                    alert('Error deleting document');
+                    console.error('Delete error:', error);
+                }
+            }
+        }
+        
+        // Toggle shortcuts modal
+        function toggleShortcuts() {
+            const modal = document.getElementById('shortcutsModal');
+            modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
+        }
+        
+        // Close modal when clicking outside
+        function closeModal(event) {
+            if (event.target.id === 'shortcutsModal') {
+                event.target.style.display = 'none';
+            }
+        }
+        
+        // Duplicate current line
+        function duplicateLine() {
+            const cursorPos = textArea.selectionStart;
+            const lines = textArea.value.split('\n');
+            const textBeforeCursor = textArea.value.substring(0, cursorPos);
+            const currentLineNumber = textBeforeCursor.split('\n').length - 1;
+            const currentLine = lines[currentLineNumber];
+            
+            lines.splice(currentLineNumber + 1, 0, currentLine);
+            textArea.value = lines.join('\n');
+            
+            // Move cursor to duplicated line
+            const newCursorPos = cursorPos + currentLine.length + 1;
+            textArea.setSelectionRange(newCursorPos, newCursorPos);
+            
+            updateLineNumbers();
+            updateStats();
+            updateMinimap();
+            markModified();
+        }
+        
+        // Move line up
+        function moveLineUp() {
+            const cursorPos = textArea.selectionStart;
+            const lines = textArea.value.split('\n');
+            const textBeforeCursor = textArea.value.substring(0, cursorPos);
+            const currentLineNumber = textBeforeCursor.split('\n').length - 1;
+            
+            if (currentLineNumber > 0) {
+                const currentLine = lines[currentLineNumber];
+                const previousLine = lines[currentLineNumber - 1];
+                
+                lines[currentLineNumber - 1] = currentLine;
+                lines[currentLineNumber] = previousLine;
+                
+                textArea.value = lines.join('\n');
+                
+                // Adjust cursor position
+                const newCursorPos = cursorPos - previousLine.length - 1;
+                textArea.setSelectionRange(newCursorPos, newCursorPos);
+                
+                updateLineNumbers();
+                updateStats();
+                updateMinimap();
+                markModified();
+            }
+        }
+        
+        // Move line down
+        function moveLineDown() {
+            const cursorPos = textArea.selectionStart;
+            const lines = textArea.value.split('\n');
+            const textBeforeCursor = textArea.value.substring(0, cursorPos);
+            const currentLineNumber = textBeforeCursor.split('\n').length - 1;
+            
+            if (currentLineNumber < lines.length - 1) {
+                const currentLine = lines[currentLineNumber];
+                const nextLine = lines[currentLineNumber + 1];
+                
+                lines[currentLineNumber] = nextLine;
+                lines[currentLineNumber + 1] = currentLine;
+                
+                textArea.value = lines.join('\n');
+                
+                // Adjust cursor position
+                const newCursorPos = cursorPos + nextLine.length + 1;
+                textArea.setSelectionRange(newCursorPos, newCursorPos);
+                
+                updateLineNumbers();
+                updateStats();
+                updateMinimap();
+                markModified();
+            }
+        }
+        
+        // Toggle comment (basic implementation)
+        function toggleComment() {
+            const cursorPos = textArea.selectionStart;
+            const lines = textArea.value.split('\n');
+            const textBeforeCursor = textArea.value.substring(0, cursorPos);
+            const currentLineNumber = textBeforeCursor.split('\n').length - 1;
+            const currentLine = lines[currentLineNumber];
+            
+            if (currentLine.trim().startsWith('//')) {
+                lines[currentLineNumber] = currentLine.replace('//', '');
+            } else {
+                lines[currentLineNumber] = '//' + currentLine;
+            }
+            
+            textArea.value = lines.join('\n');
+            updateLineNumbers();
+            updateStats();
+            updateMinimap();
+            markModified();
+        }
+        
+        // Event listeners
+        textArea.addEventListener('input', function() {
+            updateLineNumbers();
+            updateStats();
+            updateMinimap();
+            markModified();
+        });
+        
+        textArea.addEventListener('scroll', syncScroll);
+        textArea.addEventListener('keyup', updateCursorPosition);
+        textArea.addEventListener('click', updateCursorPosition);
+        
+        // Keyboard shortcuts
+        textArea.addEventListener('keydown', function(e) {
+            // Tab handling
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                
+                this.value = this.value.substring(0, start) + '\t' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 1;
+                
+                updateLineNumbers();
+                updateStats();
+                updateMinimap();
+                markModified();
+                return;
+            }
+            
+            // Keyboard shortcuts with Ctrl
+            if (e.ctrlKey) {
+                switch(e.key) {
+                    case 's':
+                        e.preventDefault();
+                        saveDocument();
+                        break;
+                    case 'f':
+                        e.preventDefault();
+                        toggleSearch();
+                        break;
+                    case 'd':
+                        e.preventDefault();
+                        duplicateLine();
+                        break;
+                    case '/':
+                        e.preventDefault();
+                        toggleComment();
+                        break;
+                }
+            }
+            
+            // Alt shortcuts
+            if (e.altKey) {
+                switch(e.key) {
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        moveLineUp();
+                        break;
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        moveLineDown();
+                        break;
+                }
+            }
+            
+            // Shift + Alt shortcuts
+            if (e.shiftKey && e.altKey) {
+                switch(e.key) {
+                    case 'F':
+                        e.preventDefault();
+                        formatDocument();
+                        break;
+                }
+            }
+        });
+        
+        // Global keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                // Close modals
+                document.getElementById('shortcutsModal').style.display = 'none';
+                document.getElementById('searchReplace').classList.remove('active');
+            }
+        });
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', initializeEditor);
+        
+        // Warn about unsaved changes before leaving
+        window.addEventListener('beforeunload', function(e) {
+            if (isModified) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
+</body>
+</html>

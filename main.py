@@ -1,0 +1,316 @@
+# main.py
+
+import os
+import json
+import hashlib
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import List, Dict, Optional
+from fastapi import FastAPI, Request, Form, HTTPException, BackgroundTasks
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+import asyncio
+
+# Configuration
+STORAGE_DIR = "storage"
+DOCUMENTS_DIR = os.path.join(STORAGE_DIR, "documents")
+BACKUPS_DIR = os.path.join(STORAGE_DIR, "backups")
+METADATA_FILE = os.path.join(STORAGE_DIR, "metadata.json")
+MAX_BACKUPS = 10
+
+# Create directories if they don't exist
+for directory in [STORAGE_DIR, DOCUMENTS_DIR, BACKUPS_DIR]:
+    os.makedirs(directory, exist_ok=True)
+
+app = FastAPI(title="Advanced Text Editor", description="A web-based text editor with multiple documents and version control")
+templates = Jinja2Templates(directory="templates")
+
+class DocumentManager:
+    def __init__(self):
+        self.load_metadata()
+    
+    def load_metadata(self):
+        """Load document metadata from file."""
+        if os.path.exists(METADATA_FILE):
+            try:
+                with open(METADATA_FILE, "r", encoding="utf-8") as f:
+                    self.metadata = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                self.metadata = {}
+        else:
+            self.metadata = {}
+    
+    def save_metadata(self):
+        """Save document metadata to file."""
+        with open(METADATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(self.metadata, f, indent=2, default=str)
+    
+    def get_document_path(self, doc_id: str) -> str:
+        """Get the file path for a document."""
+        safe_id = "".join(c for c in doc_id if c.isalnum() or c in ('-', '_', '.'))
+        return os.path.join(DOCUMENTS_DIR, f"{safe_id}.txt")
+    
+    def get_backup_path(self, doc_id: str, timestamp: str) -> str:
+        """Get the backup file path for a document."""
+        safe_id = "".join(c for c in doc_id if c.isalnum() or c in ('-', '_', '.'))
+        return os.path.join(BACKUPS_DIR, f"{safe_id}_{timestamp}.txt")
+    
+    def create_document(self, title: str, content: str = "") -> str:
+        """Create a new document and return its ID."""
+        doc_id = self.generate_doc_id(title)
+        now = datetime.now(timezone.utc)
+        
+        # Save document content
+        doc_path = self.get_document_path(doc_id)
+        with open(doc_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        
+        # Update metadata
+        self.metadata[doc_id] = {
+            "title": title,
+            "created": now.isoformat(),
+            "modified": now.isoformat(),
+            "size": len(content),
+            "lines": len(content.split('\n')) if content else 1,
+            "checksum": self.calculate_checksum(content)
+        }
+        self.save_metadata()
+        return doc_id
+    
+    def generate_doc_id(self, title: str) -> str:
+        """Generate a unique document ID from title."""
+        base_id = "".join(c.lower() for c in title if c.isalnum() or c == ' ').replace(' ', '-')
+        if not base_id:
+            base_id = "untitled"
+        
+        # Ensure uniqueness
+        counter = 1
+        doc_id = base_id
+        while doc_id in self.metadata:
+            doc_id = f"{base_id}-{counter}"
+            counter += 1
+        
+        return doc_id
+    
+    def calculate_checksum(self, content: str) -> str:
+        """Calculate MD5 checksum of content."""
+        return hashlib.md5(content.encode('utf-8')).hexdigest()
+    
+    def get_document(self, doc_id: str) -> Dict:
+        """Get document content and metadata."""
+        if doc_id not in self.metadata:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        doc_path = self.get_document_path(doc_id)
+        if not os.path.exists(doc_path):
+            raise HTTPException(status_code=404, detail="Document file not found")
+        
+        with open(doc_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        return {
+            "id": doc_id,
+            "content": content,
+            "metadata": self.metadata[doc_id]
+        }
+    
+    def save_document(self, doc_id: str, content: str, create_backup: bool = True):
+        """Save document content with optional backup."""
+        if doc_id not in self.metadata:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        doc_path = self.get_document_path(doc_id)
+        
+        # Create backup if content has changed
+        if create_backup and os.path.exists(doc_path):
+            with open(doc_path, "r", encoding="utf-8") as f:
+                old_content = f.read()
+            
+            old_checksum = self.calculate_checksum(old_content)
+            new_checksum = self.calculate_checksum(content)
+            
+            if old_checksum != new_checksum:
+                self.create_backup(doc_id, old_content)
+        
+        # Save new content
+        with open(doc_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        
+        # Update metadata
+        now = datetime.now(timezone.utc)
+        self.metadata[doc_id].update({
+            "modified": now.isoformat(),
+            "size": len(content),
+            "lines": len(content.split('\n')) if content else 1,
+            "checksum": self.calculate_checksum(content)
+        })
+        self.save_metadata()
+    
+    def create_backup(self, doc_id: str, content: str):
+        """Create a backup of the document."""
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        backup_path = self.get_backup_path(doc_id, timestamp)
+        
+        with open(backup_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        
+        # Clean old backups
+        self.cleanup_old_backups(doc_id)
+    
+    def cleanup_old_backups(self, doc_id: str):
+        """Remove old backups, keeping only the most recent ones."""
+        safe_id = "".join(c for c in doc_id if c.isalnum() or c in ('-', '_', '.'))
+        pattern = f"{safe_id}_*.txt"
+        
+        backup_files = []
+        for file in os.listdir(BACKUPS_DIR):
+            if file.startswith(f"{safe_id}_") and file.endswith(".txt"):
+                backup_files.append(os.path.join(BACKUPS_DIR, file))
+        
+        # Sort by modification time and remove oldest
+        backup_files.sort(key=os.path.getmtime, reverse=True)
+        for old_backup in backup_files[MAX_BACKUPS:]:
+            try:
+                os.remove(old_backup)
+            except OSError:
+                pass
+    
+    def list_documents(self) -> List[Dict]:
+        """List all documents with metadata."""
+        documents = []
+        for doc_id, metadata in self.metadata.items():
+            documents.append({
+                "id": doc_id,
+                "title": metadata["title"],
+                "modified": metadata["modified"],
+                "size": metadata["size"],
+                "lines": metadata["lines"]
+            })
+        
+        # Sort by modification time (newest first)
+        documents.sort(key=lambda x: x["modified"], reverse=True)
+        return documents
+    
+    def delete_document(self, doc_id: str):
+        """Delete a document and its backups."""
+        if doc_id not in self.metadata:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Delete main document
+        doc_path = self.get_document_path(doc_id)
+        if os.path.exists(doc_path):
+            os.remove(doc_path)
+        
+        # Delete backups
+        safe_id = "".join(c for c in doc_id if c.isalnum() or c in ('-', '_', '.'))
+        for file in os.listdir(BACKUPS_DIR):
+            if file.startswith(f"{safe_id}_") and file.endswith(".txt"):
+                try:
+                    os.remove(os.path.join(BACKUPS_DIR, file))
+                except OSError:
+                    pass
+        
+        # Remove from metadata
+        del self.metadata[doc_id]
+        self.save_metadata()
+
+# Initialize document manager
+doc_manager = DocumentManager()
+
+# Auto-save functionality
+async def auto_save_task():
+    """Background task for periodic auto-save reminders."""
+    while True:
+        await asyncio.sleep(300)  # Wait 5 minutes
+        # This could be extended to actually auto-save drafts
+
+@app.on_event("startup")
+async def startup_event():
+    # Create default document if none exist
+    if not doc_manager.list_documents():
+        doc_manager.create_document("Welcome Document", 
+            "Welcome to the Advanced Text Editor!\n\n"
+            "Features:\n"
+            "• Multiple documents\n"
+            "• Auto-backup system\n"
+            "• Syntax highlighting\n"
+            "• Line numbers\n"
+            "• Word/character count\n"
+            "• Search and replace\n\n"
+            "Start typing to create your first document!")
+
+@app.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request):
+    """Serve the dashboard with document list."""
+    documents = doc_manager.list_documents()
+    return templates.TemplateResponse(
+        "dashboard.html", {"request": request, "documents": documents}
+    )
+
+@app.get("/editor/{doc_id}", response_class=HTMLResponse)
+async def read_editor(request: Request, doc_id: str):
+    """Serve the editor page for a specific document."""
+    try:
+        document = doc_manager.get_document(doc_id)
+        return templates.TemplateResponse(
+            "editor.html", {
+                "request": request, 
+                "document": document,
+                "doc_id": doc_id
+            }
+        )
+    except HTTPException:
+        return RedirectResponse(url="/", status_code=303)
+
+@app.post("/save/{doc_id}")
+async def save_document(doc_id: str, content: str = Form(...)):
+    """Save document content."""
+    try:
+        doc_manager.save_document(doc_id, content)
+        return JSONResponse({"status": "success", "message": "Document saved successfully"})
+    except HTTPException as e:
+        return JSONResponse({"status": "error", "message": str(e.detail)}, status_code=e.status_code)
+
+@app.post("/create")
+async def create_document(title: str = Form(...), content: str = Form(default="")):
+    """Create a new document."""
+    doc_id = doc_manager.create_document(title, content)
+    return RedirectResponse(url=f"/editor/{doc_id}", status_code=303)
+
+@app.post("/delete/{doc_id}")
+async def delete_document(doc_id: str):
+    """Delete a document."""
+    try:
+        doc_manager.delete_document(doc_id)
+        return JSONResponse({"status": "success", "message": "Document deleted successfully"})
+    except HTTPException as e:
+        return JSONResponse({"status": "error", "message": str(e.detail)}, status_code=e.status_code)
+
+@app.get("/api/documents")
+async def api_list_documents():
+    """API endpoint to list all documents."""
+    return {"documents": doc_manager.list_documents()}
+
+@app.get("/api/document/{doc_id}")
+async def api_get_document(doc_id: str):
+    """API endpoint to get a specific document."""
+    try:
+        return doc_manager.get_document(doc_id)
+    except HTTPException as e:
+        return JSONResponse({"error": str(e.detail)}, status_code=e.status_code)
+
+@app.post("/api/save/{doc_id}")
+async def api_save_document(doc_id: str, request: Request):
+    """API endpoint to save document content."""
+    try:
+        data = await request.json()
+        content = data.get("content", "")
+        doc_manager.save_document(doc_id, content)
+        return {"status": "success", "message": "Document saved successfully"}
+    except HTTPException as e:
+        return JSONResponse({"error": str(e.detail)}, status_code=e.status_code)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
