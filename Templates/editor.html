@@ -104,14 +104,14 @@
             gap: 15px;
         }
 
-        /* <!-- STYLING FIX -->: Styles for secondary buttons specifically inside the light toolbar */
+        /* Styles for secondary buttons specifically inside the light toolbar */
         .toolbar .btn-secondary {
             background: #e2e6ea;
             color: #343a40;
             border: 1px solid #dae0e5;
         }
 
-        /* <!-- STYLING FIX -->: Hover effect for toolbar buttons to ensure they feel interactive */
+        /* Hover effect for toolbar buttons to ensure they feel interactive */
         .toolbar .btn-secondary:hover {
             background: #d3d9df;
             color: #212529;
@@ -530,15 +530,97 @@
         
         let autoSaveTimer;
         let isModified = false;
+
+        // <!-- HISTORY MANAGER -->: Undo/Redo stack implementation
+        const history = {
+            stack: [],
+            redoStack: [],
+            limit: 100,
+            debounceTimer: null,
+
+            // Save a state to the history
+            pushState(state) {
+                // When a new action is performed, clear the redo stack
+                this.redoStack = [];
+                
+                // Add new state
+                this.stack.push(state);
+
+                // Enforce the history limit
+                if (this.stack.length > this.limit) {
+                    this.stack.shift(); // Remove the oldest state
+                }
+            },
+
+            // Undo the last action
+            undo() {
+                if (this.stack.length > 1) { // Keep the initial state
+                    const lastState = this.stack.pop();
+                    this.redoStack.push(lastState); // Move it to the redo stack
+                    return this.stack[this.stack.length - 1];
+                }
+                return null; // Nothing to undo
+            },
+
+            // Redo the last undone action
+            redo() {
+                if (this.redoStack.length > 0) {
+                    const stateToRedo = this.redoStack.pop();
+                    this.stack.push(stateToRedo); // Move it back to the main stack
+                    return stateToRedo;
+                }
+                return null; // Nothing to redo
+            },
+            
+            // Get the current state of the editor
+            getCurrentState() {
+                return {
+                    content: textArea.value,
+                    cursorStart: textArea.selectionStart,
+                    cursorEnd: textArea.selectionEnd
+                };
+            },
+            
+            // Apply a saved state to the editor
+            applyState(state) {
+                textArea.value = state.content;
+                textArea.setSelectionRange(state.cursorStart, state.cursorEnd);
+                
+                // Update UI after applying state
+                updateAllUI();
+                markModified();
+            },
+            
+            // Add current state to history (used by actions)
+            record() {
+                this.pushState(this.getCurrentState());
+            },
+
+            // Record user input with a debounce to prevent saving every keystroke
+            recordDebounced() {
+                clearTimeout(this.debounceTimer);
+                this.debounceTimer = setTimeout(() => {
+                    this.record();
+                }, 500); // Save state 500ms after user stops typing
+            }
+        };
         
         // Initialize editor
         function initializeEditor() {
-            updateLineNumbers();
-            updateStats();
-            updateMinimap();
+            updateAllUI();
             
             // Auto-save every 30 seconds
             setInterval(autoSave, 30000);
+            
+            // <!-- HISTORY MANAGER -->: Save the initial state of the document
+            history.record();
+        }
+
+        function updateAllUI() {
+            updateLineNumbers();
+            updateStats();
+            updateMinimap();
+            updateCursorPosition();
         }
         
         // Update line numbers
@@ -665,6 +747,9 @@
         
         // Replace all occurrences
         function replaceAll() {
+            // <!-- HISTORY MANAGER -->: Record state before action
+            history.record();
+            
             const searchTerm = document.getElementById('searchInput').value;
             const replaceTerm = document.getElementById('replaceInput').value;
             
@@ -675,9 +760,7 @@
                 
                 if (newContent !== content) {
                     textArea.value = newContent;
-                    updateLineNumbers();
-                    updateStats();
-                    updateMinimap();
+                    updateAllUI();
                     markModified();
                 }
             }
@@ -685,22 +768,21 @@
         
         // Format document
         function formatDocument() {
+            // <!-- HISTORY MANAGER -->: Record state before action
+            history.record();
+
             const content = textArea.value;
             let formatted = content;
             
-            // Basic formatting: fix indentation and remove extra whitespace
             const lines = content.split('\n');
             const formattedLines = lines.map(line => line.trim());
             formatted = formattedLines.join('\n');
             
-            // Remove multiple consecutive empty lines
             formatted = formatted.replace(/\n\n\n+/g, '\n\n');
             
             if (formatted !== content) {
                 textArea.value = formatted;
-                updateLineNumbers();
-                updateStats();
-                updateMinimap();
+                updateAllUI();
                 markModified();
             }
         }
@@ -708,11 +790,7 @@
         // Function to toggle RTL mode
         function toggleRTL() {
             const editorWrapper = document.querySelector('.editor-wrapper');
-            
-            // Toggle the master RTL class on the wrapper
             editorWrapper.classList.toggle('rtl-mode');
-            
-            // Also toggle the class on the textarea and line numbers directly
             textArea.classList.toggle('rtl-mode');
             lineNumbers.classList.toggle('rtl-mode');
         }
@@ -720,7 +798,6 @@
         // Change syntax highlighting mode
         function changeSyntaxMode() {
             const mode = document.getElementById('syntaxMode').value;
-            // This could be extended to apply syntax highlighting
             console.log('Syntax mode changed to:', mode);
         }
         
@@ -759,6 +836,9 @@
         
         // Duplicate current line
         function duplicateLine() {
+            // <!-- HISTORY MANAGER -->: Record state before action
+            history.record();
+            
             const cursorPos = textArea.selectionStart;
             const lines = textArea.value.split('\n');
             const textBeforeCursor = textArea.value.substring(0, cursorPos);
@@ -768,18 +848,18 @@
             lines.splice(currentLineNumber + 1, 0, currentLine);
             textArea.value = lines.join('\n');
             
-            // Move cursor to duplicated line
             const newCursorPos = cursorPos + currentLine.length + 1;
             textArea.setSelectionRange(newCursorPos, newCursorPos);
             
-            updateLineNumbers();
-            updateStats();
-            updateMinimap();
+            updateAllUI();
             markModified();
         }
         
         // Move line up
         function moveLineUp() {
+            // <!-- HISTORY MANAGER -->: Record state before action
+            history.record();
+
             const cursorPos = textArea.selectionStart;
             const lines = textArea.value.split('\n');
             const textBeforeCursor = textArea.value.substring(0, cursorPos);
@@ -794,19 +874,19 @@
                 
                 textArea.value = lines.join('\n');
                 
-                // Adjust cursor position
                 const newCursorPos = cursorPos - previousLine.length - 1;
                 textArea.setSelectionRange(newCursorPos, newCursorPos);
                 
-                updateLineNumbers();
-                updateStats();
-                updateMinimap();
+                updateAllUI();
                 markModified();
             }
         }
         
         // Move line down
         function moveLineDown() {
+            // <!-- HISTORY MANAGER -->: Record state before action
+            history.record();
+            
             const cursorPos = textArea.selectionStart;
             const lines = textArea.value.split('\n');
             const textBeforeCursor = textArea.value.substring(0, cursorPos);
@@ -821,19 +901,19 @@
                 
                 textArea.value = lines.join('\n');
                 
-                // Adjust cursor position
                 const newCursorPos = cursorPos + nextLine.length + 1;
                 textArea.setSelectionRange(newCursorPos, newCursorPos);
                 
-                updateLineNumbers();
-                updateStats();
-                updateMinimap();
+                updateAllUI();
                 markModified();
             }
         }
         
         // Toggle comment (basic implementation)
         function toggleComment() {
+            // <!-- HISTORY MANAGER -->: Record state before action
+            history.record();
+            
             const cursorPos = textArea.selectionStart;
             const lines = textArea.value.split('\n');
             const textBeforeCursor = textArea.value.substring(0, cursorPos);
@@ -847,18 +927,16 @@
             }
             
             textArea.value = lines.join('\n');
-            updateLineNumbers();
-            updateStats();
-            updateMinimap();
+            updateAllUI();
             markModified();
         }
         
         // Event listeners
         textArea.addEventListener('input', function() {
-            updateLineNumbers();
-            updateStats();
-            updateMinimap();
+            updateAllUI();
             markModified();
+            // <!-- HISTORY MANAGER -->: Record user typing with a debounce
+            history.recordDebounced();
         });
         
         textArea.addEventListener('scroll', syncScroll);
@@ -870,22 +948,23 @@
             // Tab handling
             if (e.key === 'Tab') {
                 e.preventDefault();
+                // <!-- HISTORY MANAGER -->: Record state before action
+                history.record();
+                
                 const start = this.selectionStart;
                 const end = this.selectionEnd;
                 
                 this.value = this.value.substring(0, start) + '\t' + this.value.substring(end);
                 this.selectionStart = this.selectionEnd = start + 1;
                 
-                updateLineNumbers();
-                updateStats();
-                updateMinimap();
+                updateAllUI();
                 markModified();
                 return;
             }
             
             // Keyboard shortcuts with Ctrl
-            if (e.ctrlKey) {
-                switch(e.key) {
+            if (e.ctrlKey || e.metaKey) { // Also check for Cmd on Mac
+                switch(e.key.toLowerCase()) {
                     case 's':
                         e.preventDefault();
                         saveDocument();
@@ -901,6 +980,18 @@
                     case '/':
                         e.preventDefault();
                         toggleComment();
+                        break;
+                    // <!-- HISTORY MANAGER -->: Custom Undo
+                    case 'z':
+                        e.preventDefault();
+                        const undoState = history.undo();
+                        if (undoState) history.applyState(undoState);
+                        break;
+                    // <!-- HISTORY MANAGER -->: Custom Redo
+                    case 'y':
+                        e.preventDefault();
+                        const redoState = history.redo();
+                        if (redoState) history.applyState(redoState);
                         break;
                 }
             }
@@ -921,8 +1012,8 @@
             
             // Shift + Alt shortcuts
             if (e.shiftKey && e.altKey) {
-                switch(e.key) {
-                    case 'F':
+                switch(e.key.toLowerCase()) {
+                    case 'f':
                         e.preventDefault();
                         formatDocument();
                         break;
