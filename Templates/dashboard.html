@@ -163,6 +163,8 @@
             border: 2px solid transparent;
             position: relative;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
         
         .document-card::before {
@@ -213,8 +215,7 @@
         .document-actions {
             display: flex;
             gap: 10px;
-            justify-content: space-between;
-            align-items: center;
+            margin-top: auto; /* Push actions to the bottom */
         }
         
         .btn-sm {
@@ -223,12 +224,13 @@
         }
         
         .btn-secondary {
-            background: #6c757d;
-            color: white;
+            background: #e2e6ea;
+            color: #343a40;
+            border: 1px solid #dae0e5;
         }
         
         .btn-secondary:hover {
-            background: #5a6268;
+            background: #d3d9df;
             transform: translateY(-1px);
         }
         
@@ -242,11 +244,13 @@
             box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
         }
         
-        .empty-state {
+        .empty-state, .loading {
             text-align: center;
             padding: 60px 20px;
             color: #6c757d;
         }
+        
+        .loading { display: none; }
         
         .empty-state .empty-icon {
             font-size: 4em;
@@ -259,30 +263,6 @@
             color: #495057;
         }
         
-        .stats-bar {
-            background: #f8f9fa;
-            padding: 20px 40px;
-            border-top: 1px solid #e9ecef;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 14px;
-            color: #6c757d;
-        }
-        
-        .stats-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 40px;
-            color: #6c757d;
-        }
-        
         .spinner {
             width: 40px;
             height: 40px;
@@ -293,61 +273,88 @@
             margin: 0 auto 20px;
         }
         
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-header h3 {
+            font-size: 1.5em;
+            color: #2c3e50;
+        }
+
+        .modal-body {
+            overflow-y: auto;
+        }
+
+        .backup-list {
+            list-style: none;
+        }
+
+        .backup-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-radius: 8px;
+            transition: background-color 0.2s;
+        }
+
+        .backup-item:nth-child(odd) {
+            background: #f8f9fa;
+        }
+        
+        .backup-item:hover {
+            background: #e9ecef;
+        }
+
+        .backup-date {
+            font-family: monospace;
+            color: #495057;
+        }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
         
         @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-            
-            .header {
-                padding: 20px;
-            }
-            
-            .header h1 {
-                font-size: 2em;
-                flex-direction: column;
-                gap: 10px;
-            }
-            
-            .main-content {
-                padding: 20px;
-            }
-            
-            .create-section {
-                padding: 20px;
-            }
-            
-            .create-form {
-                flex-direction: column;
-            }
-            
-            .form-group {
-                min-width: auto;
-            }
-            
-            .documents-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .document-meta {
-                grid-template-columns: 1fr;
-                gap: 10px;
-            }
-            
-            .document-actions {
-                flex-direction: column;
-                gap: 10px;
-            }
-            
-            .stats-bar {
-                padding: 15px 20px;
-                flex-direction: column;
-                gap: 10px;
-            }
+            body { padding: 10px; }
+            .header { padding: 20px; }
+            .header h1 { font-size: 2em; flex-direction: column; gap: 10px; }
+            .main-content { padding: 20px; }
+            .create-section { padding: 20px; }
+            .create-form { flex-direction: column; }
+            .documents-grid { grid-template-columns: 1fr; }
         }
         
         .fade-in {
@@ -364,10 +371,7 @@
     <div class="dashboard-container fade-in">
         <!-- Header -->
         <div class="header">
-            <h1>
-                <span>📝</span>
-                <span>Advanced Text Editor</span>
-            </h1>
+            <h1><span>📝</span><span>Advanced Text Editor</span></h1>
             <p>Create, edit, and manage your documents with powerful features</p>
         </div>
 
@@ -375,77 +379,34 @@
         <div class="main-content">
             <!-- Create New Document Section -->
             <div class="create-section">
-                <h2>
-                    <span>✨</span>
-                    Create New Document
-                </h2>
+                <h2><span>✨</span> Create New Document</h2>
                 <form class="create-form" action="/create" method="post">
                     <div class="form-group">
                         <label for="title">Document Title</label>
-                        <input 
-                            type="text" 
-                            id="title" 
-                            name="title" 
-                            placeholder="Enter document title... (Ctrl+N)" 
-                            required
-                            maxlength="100"
-                        >
+                        <input type="text" id="title" name="title" placeholder="Enter document title... (Ctrl+N)" required maxlength="100">
                     </div>
-                    <button type="submit" class="btn btn-primary">
-                        <span>🚀</span>
-                        Create Document
-                    </button>
+                    <button type="submit" class="btn btn-primary"><span>🚀</span> Create Document</button>
                 </form>
             </div>
 
             <!-- Documents Section -->
             <div class="documents-section">
-                <h2>
-                    <span>📚</span>
-                    Your Documents
-                    <span style="font-size: 0.6em; color: #6c757d;">({{ documents|length }})</span>
-                </h2>
-
+                <h2><span>📚</span> Your Documents <span style="font-size: 0.6em; color: #6c757d;">({{ documents|length }})</span></h2>
                 {% if documents %}
                     <div class="documents-grid">
                         {% for doc in documents %}
                         <div class="document-card">
-                            <div class="document-title">
-                                <span>📄</span>
-                                {{ doc.title }}
-                            </div>
-                            
+                            <div class="document-title"><span>📄</span>{{ doc.title }}</div>
                             <div class="document-meta">
-                                <div class="meta-item">
-                                    <span>📅</span>
-                                    <strong>Modified:</strong> {{ doc.modified[:10] }}
-                                </div>
-                                <div class="meta-item">
-                                    <span>📏</span>
-                                    <strong>Lines:</strong> {{ doc.lines }}
-                                </div>
-                                <div class="meta-item">
-                                    <span>💾</span>
-                                    <strong>Size:</strong> {{ "%.1f"|format(doc.size / 1024) }} KB
-                                </div>
-                                <div class="meta-item">
-                                    <span>🕒</span>
-                                    <strong>Time:</strong> {{ doc.modified[11:16] }}
-                                </div>
+                                <div class="meta-item"><span>📅</span><strong>Modified:</strong> {{ doc.modified[:10] }}</div>
+                                <div class="meta-item"><span>📏</span><strong>Lines:</strong> {{ doc.lines }}</div>
+                                <div class="meta-item"><span>💾</span><strong>Size:</strong> {{ "%.1f"|format(doc.size / 1024) }} KB</div>
+                                <div class="meta-item"><span>🕒</span><strong>Time:</strong> {{ doc.modified[11:16] }}</div>
                             </div>
-                            
                             <div class="document-actions">
-                                <a href="/editor/{{ doc.id }}" class="btn btn-primary btn-sm">
-                                    <span>✏️</span>
-                                    Edit
-                                </a>
-                                <button 
-                                    class="btn btn-danger btn-sm" 
-                                    onclick="deleteDocument('{{ doc.id }}', '{{ doc.title }}')"
-                                >
-                                    <span>🗑️</span>
-                                    Delete
-                                </button>
+                                <a href="/editor/{{ doc.id }}" class="btn btn-primary btn-sm"><span>✏️</span> Edit</a>
+                                <button class="btn btn-secondary btn-sm" onclick="showBackups('{{ doc.id }}', '{{ doc.title }}')"><span>🕒</span> Backups</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteDocument('{{ doc.id }}', '{{ doc.title }}')"><span>🗑️</span> Delete</button>
                             </div>
                         </div>
                         {% endfor %}
@@ -458,106 +419,145 @@
                     </div>
                 {% endif %}
             </div>
-
-            <!-- Loading State -->
-            <div class="loading" id="loadingState">
-                <div class="spinner"></div>
-                <p>Processing...</p>
-            </div>
+            <div class="loading" id="loadingState"><div class="spinner"></div><p>Processing...</p></div>
         </div>
+    </div>
 
-        <!-- Stats Bar -->
-        <div class="stats-bar">
-            <div class="stats-item">
-                <span>📊</span>
-                <strong>{{ documents|length }}</strong> documents
+    <!-- Backup Modal -->
+    <div id="backupModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="backupModalTitle">Backups</h3>
+                <button class="btn btn-sm btn-danger" onclick="closeModal()">×</button>
             </div>
-            <div class="stats-item">
-                <span>💾</span>
-                <strong>{{ "%.1f"|format((documents|sum(attribute='size') / 1024) if documents else 0) }}</strong> KB total
-            </div>
-            <div class="stats-item">
-                <span>📈</span>
-                <strong>{{ documents|sum(attribute='lines') if documents else 0 }}</strong> lines total
-            </div>
-            <div class="stats-item">
-                <span>🕒</span>
-                Last activity: {% if documents %}{{ documents[0].modified[:16].replace('T', ' ') }}{% else %}None{% endif %}
+            <div class="modal-body" id="backupModalBody">
+                <div class="loading" id="modalLoadingState"><div class="spinner"></div><p>Fetching backups...</p></div>
+                <ul class="backup-list" id="backupList"></ul>
             </div>
         </div>
     </div>
 
     <script>
-        // Delete document with confirmation
+        // --- Modal ---
+        const backupModal = document.getElementById('backupModal');
+        const backupModalTitle = document.getElementById('backupModalTitle');
+        const backupModalBody = document.getElementById('backupModalBody');
+        const modalLoadingState = document.getElementById('modalLoadingState');
+        const backupList = document.getElementById('backupList');
+        
+        async function showBackups(docId, docTitle) {
+            backupModalTitle.textContent = `Backups for "${docTitle}"`;
+            backupList.innerHTML = ''; // Clear previous list
+            modalLoadingState.style.display = 'block';
+            backupModal.style.display = 'flex';
+
+            try {
+                const response = await fetch(`/api/document/${docId}/backups`);
+                if (!response.ok) throw new Error('Failed to fetch backups');
+                
+                const data = await response.json();
+                modalLoadingState.style.display = 'none';
+
+                if (data.backups && data.backups.length > 0) {
+                    data.backups.forEach(backup => {
+                        const li = document.createElement('li');
+                        li.className = 'backup-item';
+                        li.innerHTML = `
+                            <span class="backup-date">${backup.datetime} UTC</span>
+                            <button class="btn btn-sm btn-primary" onclick="restoreBackup('${docId}', '${backup.timestamp}', '${docTitle}', '${backup.datetime}')">
+                                <span>🔄</span> Restore
+                            </button>
+                        `;
+                        backupList.appendChild(li);
+                    });
+                } else {
+                    backupList.innerHTML = '<li class="empty-state" style="padding: 20px;">No backups found.</li>';
+                }
+            } catch (error) {
+                modalLoadingState.style.display = 'none';
+                backupList.innerHTML = `<li class="empty-state" style="padding: 20px; color: #dc3545;">Error: ${error.message}</li>`;
+                console.error('Fetch backups error:', error);
+            }
+        }
+
+        async function restoreBackup(docId, timestamp, docTitle, datetime) {
+            if (confirm(`Are you sure you want to restore the backup from ${datetime} for "${docTitle}"?\n\nThe current version will be saved as a new backup before restoring.`)) {
+                showLoading(true);
+                closeModal();
+
+                try {
+                    const response = await fetch(`/api/document/${docId}/restore/${timestamp}`, {
+                        method: 'POST'
+                    });
+                    if (response.ok) {
+                        alert('Document restored successfully!');
+                        window.location.reload();
+                    } else {
+                        const err = await response.json();
+                        throw new Error(err.message || 'Failed to restore backup.');
+                    }
+                } catch (error) {
+                    alert(`Error restoring backup: ${error.message}`);
+                } finally {
+                    showLoading(false);
+                }
+            }
+        }
+
+        function closeModal() {
+            backupModal.style.display = 'none';
+        }
+        
+        // --- Document Actions ---
         async function deleteDocument(docId, title) {
             if (confirm(`Are you sure you want to delete "${title}"?\n\nThis action cannot be undone.`)) {
                 showLoading(true);
-                
                 try {
-                    const response = await fetch(`/delete/${docId}`, {
-                        method: 'POST'
-                    });
-                    
+                    const response = await fetch(`/delete/${docId}`, { method: 'POST' });
                     if (response.ok) {
-                        // Reload page to refresh document list
                         window.location.reload();
                     } else {
                         alert('Failed to delete document. Please try again.');
                     }
                 } catch (error) {
-                    alert('Error deleting document. Please check your connection.');
-                    console.error('Delete error:', error);
+                    alert('Error deleting document.');
                 } finally {
                     showLoading(false);
                 }
             }
         }
         
-        // Show/hide loading state
         function showLoading(show) {
-            const loadingState = document.getElementById('loadingState');
-            loadingState.style.display = show ? 'block' : 'none';
+            document.getElementById('loadingState').style.display = show ? 'block' : 'none';
         }
         
-        // Auto-focus title input on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            const titleInput = document.getElementById('title');
-            if (titleInput) {
-                titleInput.focus();
-            }
-        });
+        // --- Event Listeners ---
+        document.addEventListener('DOMContentLoaded', () => document.getElementById('title')?.focus());
         
-        // Form validation before submitting
         document.querySelector('.create-form').addEventListener('submit', function(e) {
-            const titleInput = document.getElementById('title');
-            const title = titleInput.value.trim();
-            
+            const title = document.getElementById('title').value.trim();
             if (!title) {
                 e.preventDefault();
                 alert('Please enter a document title.');
-                titleInput.focus();
-                return;
+            } else {
+                showLoading(true);
             }
-            
-            if (title.length > 100) {
-                e.preventDefault();
-                alert('Document title must be 100 characters or less.');
-                titleInput.focus();
-                return;
-            }
-            
-            showLoading(true);
         });
         
-        // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
-            // Ctrl+N or Cmd+N to focus the new document input
             if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-                e.preventDefault(); // Prevent browser's default "new window" action
-                const titleInput = document.getElementById('title');
-                if (titleInput) {
-                    titleInput.focus();
-                }
+                e.preventDefault();
+                document.getElementById('title')?.focus();
+            }
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+        
+        // Close modal if clicking on overlay
+        backupModal.addEventListener('click', function(e) {
+            if (e.target === backupModal) {
+                closeModal();
             }
         });
     </script>

@@ -127,10 +127,7 @@ class DocumentManager:
             with open(doc_path, "r", encoding="utf-8") as f:
                 old_content = f.read()
             
-            old_checksum = self.calculate_checksum(old_content)
-            new_checksum = self.calculate_checksum(content)
-            
-            if old_checksum != new_checksum:
+            if self.calculate_checksum(old_content) != self.calculate_checksum(content):
                 self.create_backup(doc_id, old_content)
         
         # Save new content
@@ -161,14 +158,12 @@ class DocumentManager:
     def cleanup_old_backups(self, doc_id: str):
         """Remove old backups, keeping only the most recent ones."""
         safe_id = "".join(c for c in doc_id if c.isalnum() or c in ('-', '_', '.'))
-        pattern = f"{safe_id}_*.txt"
         
         backup_files = []
         for file in os.listdir(BACKUPS_DIR):
             if file.startswith(f"{safe_id}_") and file.endswith(".txt"):
                 backup_files.append(os.path.join(BACKUPS_DIR, file))
         
-        # Sort by modification time and remove oldest
         backup_files.sort(key=os.path.getmtime, reverse=True)
         for old_backup in backup_files[MAX_BACKUPS:]:
             try:
@@ -188,21 +183,57 @@ class DocumentManager:
                 "lines": metadata["lines"]
             })
         
-        # Sort by modification time (newest first)
         documents.sort(key=lambda x: x["modified"], reverse=True)
         return documents
-    
+
+    def list_backups(self, doc_id: str) -> List[Dict]:
+        """List all backups for a specific document."""
+        if doc_id not in self.metadata:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        safe_id = "".join(c for c in doc_id if c.isalnum() or c in ('-', '_', '.'))
+        backups = []
+        for file in os.listdir(BACKUPS_DIR):
+            if file.startswith(f"{safe_id}_") and file.endswith(".txt"):
+                timestamp_str = file[len(safe_id)+1:-4]
+                try:
+                    # Create a datetime object for user-friendly display
+                    dt_obj = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                    backups.append({
+                        "timestamp": timestamp_str,
+                        "datetime": dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+                    })
+                except ValueError:
+                    continue # Skip files with malformed timestamps
+        
+        backups.sort(key=lambda x: x["timestamp"], reverse=True)
+        return backups
+
+    def restore_backup(self, doc_id: str, timestamp: str):
+        """Restore a document from a specific backup."""
+        if doc_id not in self.metadata:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        backup_path = self.get_backup_path(doc_id, timestamp)
+        if not os.path.exists(backup_path):
+            raise HTTPException(status_code=404, detail="Backup not found")
+        
+        with open(backup_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        # Save the content to the main document file.
+        # This will also create a new backup of the *current* state before overwriting.
+        self.save_document(doc_id, content)
+
     def delete_document(self, doc_id: str):
         """Delete a document and its backups."""
         if doc_id not in self.metadata:
             raise HTTPException(status_code=404, detail="Document not found")
         
-        # Delete main document
         doc_path = self.get_document_path(doc_id)
         if os.path.exists(doc_path):
             os.remove(doc_path)
         
-        # Delete backups
         safe_id = "".join(c for c in doc_id if c.isalnum() or c in ('-', '_', '.'))
         for file in os.listdir(BACKUPS_DIR):
             if file.startswith(f"{safe_id}_") and file.endswith(".txt"):
@@ -211,38 +242,19 @@ class DocumentManager:
                 except OSError:
                     pass
         
-        # Remove from metadata
         del self.metadata[doc_id]
         self.save_metadata()
 
-# Initialize document manager
 doc_manager = DocumentManager()
-
-# Auto-save functionality
-async def auto_save_task():
-    """Background task for periodic auto-save reminders."""
-    while True:
-        await asyncio.sleep(300)  # Wait 5 minutes
-        # This could be extended to actually auto-save drafts
 
 @app.on_event("startup")
 async def startup_event():
-    # Create default document if none exist
     if not doc_manager.list_documents():
         doc_manager.create_document("Welcome Document", 
-            "Welcome to the Advanced Text Editor!\n\n"
-            "Features:\n"
-            "• Multiple documents\n"
-            "• Auto-backup system\n"
-            "• Syntax highlighting\n"
-            "• Line numbers\n"
-            "• Word/character count\n"
-            "• Search and replace\n\n"
-            "Start typing to create your first document!")
+            "Welcome to the Advanced Text Editor!")
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    """Serve the dashboard with document list."""
     documents = doc_manager.list_documents()
     return templates.TemplateResponse(
         "dashboard.html", {"request": request, "documents": documents}
@@ -250,7 +262,6 @@ async def dashboard(request: Request):
 
 @app.get("/editor/{doc_id}", response_class=HTMLResponse)
 async def read_editor(request: Request, doc_id: str):
-    """Serve the editor page for a specific document."""
     try:
         document = doc_manager.get_document(doc_id)
         return templates.TemplateResponse(
@@ -263,38 +274,27 @@ async def read_editor(request: Request, doc_id: str):
     except HTTPException:
         return RedirectResponse(url="/", status_code=303)
 
-@app.post("/save/{doc_id}")
-async def save_document(doc_id: str, content: str = Form(...)):
-    """Save document content."""
-    try:
-        doc_manager.save_document(doc_id, content)
-        return JSONResponse({"status": "success", "message": "Document saved successfully"})
-    except HTTPException as e:
-        return JSONResponse({"status": "error", "message": str(e.detail)}, status_code=e.status_code)
-
 @app.post("/create")
 async def create_document(title: str = Form(...), content: str = Form(default="")):
-    """Create a new document."""
     doc_id = doc_manager.create_document(title, content)
     return RedirectResponse(url=f"/editor/{doc_id}", status_code=303)
 
 @app.post("/delete/{doc_id}")
 async def delete_document(doc_id: str):
-    """Delete a document."""
     try:
         doc_manager.delete_document(doc_id)
-        return JSONResponse({"status": "success", "message": "Document deleted successfully"})
+        return JSONResponse({"status": "success"})
     except HTTPException as e:
         return JSONResponse({"status": "error", "message": str(e.detail)}, status_code=e.status_code)
 
+# --- API Endpoints ---
+
 @app.get("/api/documents")
 async def api_list_documents():
-    """API endpoint to list all documents."""
     return {"documents": doc_manager.list_documents()}
 
 @app.get("/api/document/{doc_id}")
 async def api_get_document(doc_id: str):
-    """API endpoint to get a specific document."""
     try:
         return doc_manager.get_document(doc_id)
     except HTTPException as e:
@@ -302,12 +302,29 @@ async def api_get_document(doc_id: str):
 
 @app.post("/api/save/{doc_id}")
 async def api_save_document(doc_id: str, request: Request):
-    """API endpoint to save document content."""
     try:
         data = await request.json()
         content = data.get("content", "")
         doc_manager.save_document(doc_id, content)
         return {"status": "success", "message": "Document saved successfully"}
+    except HTTPException as e:
+        return JSONResponse({"error": str(e.detail)}, status_code=e.status_code)
+
+@app.get("/api/document/{doc_id}/backups")
+async def api_list_backups(doc_id: str):
+    """API endpoint to list backups for a document."""
+    try:
+        backups = doc_manager.list_backups(doc_id)
+        return {"backups": backups}
+    except HTTPException as e:
+        return JSONResponse({"error": str(e.detail)}, status_code=e.status_code)
+
+@app.post("/api/document/{doc_id}/restore/{timestamp}")
+async def api_restore_backup(doc_id: str, timestamp: str):
+    """API endpoint to restore a document from a backup."""
+    try:
+        doc_manager.restore_backup(doc_id, timestamp)
+        return {"status": "success", "message": "Backup restored successfully"}
     except HTTPException as e:
         return JSONResponse({"error": str(e.detail)}, status_code=e.status_code)
 
