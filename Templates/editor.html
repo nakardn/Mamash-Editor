@@ -719,37 +719,32 @@
             }
         }
         
-        // Cancel all changes made in the current session
-        function cancelChanges() {
-            // The condition is changed here. Instead of checking the 'isModified' flag,
-            // we check if the history stack contains more than the initial state.
-            // This accurately reflects whether any changes have been made during the session,
-            // regardless of whether they have been saved.
+        // Cancel all changes made in the current session and save the reverted state
+        async function cancelChanges() {
             if (history.stack.length <= 1) {
                 alert('No changes have been made in this session to cancel.');
                 return;
             }
 
-            if (confirm('Are you sure you want to discard all changes made in this session? This will revert the document to how it was when you opened it.')) {
-                // Get the initial state (the very first record in the history)
+            if (confirm('Are you sure you want to discard all changes from this session? This will revert the document to how it was when you opened it and save this state.')) {
                 const initialState = history.stack[0];
                 
                 if (initialState) {
-                    // Apply the initial state.
-                    history.applyState(initialState);
-                    
-                    // Reset the history stacks, clearing all recorded changes from the session.
-                    history.reset();
-                    
-                    // After reverting, the content matches the original loaded content.
-                    // We can now reset the modification status to "Saved" because any
-                    // subsequent changes will be compared against this reverted state.
-                    isModified = false;
-                    autoSaveIndicator.className = 'auto-save-indicator saved';
-                    autoSaveIndicator.textContent = '✓ Reverted'; // Give specific feedback
-                    
-                    // Final UI sync to be sure
+                    // 1. Revert the textarea content to the initial state.
+                    textArea.value = initialState.content;
+                    textArea.setSelectionRange(initialState.cursorStart, initialState.cursorEnd);
                     updateAllUI();
+
+                    // 2. Immediately save this reverted state to the server.
+                    //    The saveDocument function will handle UI indicators and set isModified to false.
+                    await saveDocument();
+                    
+                    // 3. After the save is confirmed, reset the local history.
+                    //    This prevents "undoing the cancel".
+                    history.reset();
+
+                    // 4. Record the newly saved state as the new baseline for future undos.
+                    history.record();
                 }
             }
         }
