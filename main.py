@@ -24,6 +24,7 @@ for directory in [STORAGE_DIR, DOCUMENTS_DIR, BACKUPS_DIR]:
     os.makedirs(directory, exist_ok=True)
 
 app = FastAPI(title="Advanced Text Editor", description="A web-based text editor with multiple documents and version control")
+app.mount("/Templates", StaticFiles(directory="Templates"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 class DocumentManager:
