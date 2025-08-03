@@ -292,6 +292,17 @@ async def delete_document(doc_id: str):
 
 # --- API Endpoints ---
 
+@app.post("/print")
+async def get_print(request: Request):
+    try:
+        data = await request.json()
+        content = data.get("content", "")
+        print(content)
+        return {"status": "success", "message": "String printed successfully"}
+    except HTTPException as e:
+        return JSONResponse({"error": str(e.detail)}, status_code=e.status_code)
+
+
 @app.get("/api/documents")
 async def api_list_documents():
     return {"documents": doc_manager.list_documents()}
