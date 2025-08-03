@@ -1,40 +1,82 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RTL CodeMirror Editor</title>
-    <style>
-        body { 
-            margin: 0; 
-            font-family: sans-serif;
-        }
-        .controls { 
-            padding: 8px; 
-            border-bottom: 1px solid #ccc; 
-        }
-        button { 
-            padding: 5px 10px; 
-            font-size: 14px; 
-            cursor: pointer; 
-        }
-        /* Set a specific height for the editor's container */
-        #editor-container { 
-            height: calc(100vh - 42px); 
-        }
-        /* Make the editor fill its container */
-        .cm-editor {
-             height: 100%;
-        }
-    </style>
-</head>
-<body>
-    <div class="controls">
-        <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
-    </div>
-    <div id="editor-container"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>CodeMirror 6 — RTL & Hebrew Ready Editor</title>
+    <meta
+      name="description"
+      content="A stylized CodeMirror 6 web app with English UI and RTL/Hebrew editor support."
+    />
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Noto+Sans+Hebrew:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">⌨️</div>
+        <div>
+          <h1 class="title">Editor Playground</h1>
+          <p class="subtitle">English UI · RTL/Hebrew-capable editor</p>
+        </div>
+      </div>
+      <nav class="toolbar" aria-label="Editor controls">
+        <div class="control">
+          <label for="directionSelect">Direction</label>
+          <select id="directionSelect">
+            <option value="ltr" selected>LTR (Left-to-Right)</option>
+            <option value="rtl">RTL (Right-to-Left)</option>
+            <option value="auto">Auto (content-aware)</option>
+          </select>
+        </div>
 
-    <!-- Ensure you are using a module-compatible script tag -->
-    <script type="module" src="main.js"></script>
-</body>
+        <div class="control">
+          <label for="themeToggle">Theme</label>
+          <button id="themeToggle" class="btn" aria-pressed="false">
+            Light
+          </button>
+        </div>
+
+        <div class="control">
+          <label class="sr-only" for="insertHebrew">Insert Hebrew sample</label>
+          <button id="insertHebrew" class="btn accent">
+            Insert Hebrew sample
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main class="app-main">
+      <section class="editor-card" aria-label="Code editor">
+        <div id="editor" class="editor-host" role="region" aria-label="Code editor"></div>
+        <div class="statusbar" aria-live="polite" aria-atomic="true">
+          <span id="statusDirection">Direction: LTR</span>
+          <span aria-hidden="true">·</span>
+          <span id="statusTheme">Theme: Light</span>
+          <span class="hint">
+            Tip: Toggle RTL for Hebrew (עברית). Mixed-direction text is supported.
+          </span>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>
+        Built with
+        <a href="https://codemirror.net/6/" target="_blank" rel="noreferrer">CodeMirror 6</a>.
+        UI in English. Editor supports RTL and Hebrew.
+      </p>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>
