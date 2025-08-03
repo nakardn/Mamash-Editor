@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RTL CodeMirror Editor</title>
+    <style>
+        body { 
+            margin: 0; 
+            font-family: sans-serif;
+        }
+        .controls { 
+            padding: 8px; 
+            border-bottom: 1px solid #ccc; 
+        }
+        button { 
+            padding: 5px 10px; 
+            font-size: 14px; 
+            cursor: pointer; 
+        }
+        /* Set a specific height for the editor's container */
+        #editor-container { 
+            height: calc(100vh - 42px); 
+        }
+        /* Make the editor fill its container */
+        .cm-editor {
+             height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
+    </div>
+    <div id="editor-container"></div>
+
+    <!-- Ensure you are using a module-compatible script tag -->
+    <script type="module" src="main.js"></script>
+</body>
+</html>
