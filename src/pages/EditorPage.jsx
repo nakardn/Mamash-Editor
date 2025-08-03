@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import localforage from 'localforage';
 
 const EditorPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [document, setDocument] = useState(null);
   const [content, setContent] = useState('');
   const [versions, setVersions] = useState([]);
+  const [language, setLanguage] = useState('javascript'); // Default language
   const editorRef = useRef(null);
 
   useEffect(() => {
@@ -17,20 +19,20 @@ const EditorPage = () => {
         setDocument(doc);
         setContent(doc.content);
         setVersions(doc.versions || []);
+        setLanguage(doc.language || 'javascript'); // Load saved language or default
       } else {
-        // Handle case where document might not exist (e.g., direct URL access)
-        // Redirect to dashboard or create a new document
-        // For now, let's just set a default empty document
         const newDocument = {
           id: id,
           title: 'Untitled Document',
           content: '',
-          versions: []
+          versions: [],
+          language: 'javascript' // Default language for new documents
         };
         await localforage.setItem(id, newDocument);
         setDocument(newDocument);
         setContent('');
         setVersions([]);
+        setLanguage('javascript');
       }
     };
     fetchDocument();
@@ -43,8 +45,6 @@ const EditorPage = () => {
       setDocument(updatedDocument);
       localforage.setItem(id, updatedDocument);
 
-      // Save version every 5 seconds of inactivity or on significant change
-      // This is a simplified approach. A more robust solution would use debouncing.
       if (editorRef.current) {
         clearTimeout(editorRef.current.saveTimer);
         editorRef.current.saveTimer = setTimeout(() => {
@@ -54,13 +54,22 @@ const EditorPage = () => {
     }
   };
 
+  const handleLanguageChange = async (e) => {
+    const newLanguage = e.target.value;
+    setLanguage(newLanguage);
+    if (document) {
+      const updatedDocument = { ...document, language: newLanguage };
+      setDocument(updatedDocument);
+      await localforage.setItem(id, updatedDocument);
+    }
+  };
+
   const saveVersion = async (docToSave) => {
     const newVersion = {
       timestamp: Date.now(),
       content: docToSave.content,
     };
     const updatedVersions = [...(docToSave.versions || []), newVersion];
-    // Keep only the last 10 versions to prevent excessive storage
     const limitedVersions = updatedVersions.slice(-10);
     const finalDocument = { ...docToSave, versions: limitedVersions };
     await localforage.setItem(id, finalDocument);
@@ -74,8 +83,11 @@ const EditorPage = () => {
       const updatedDocument = { ...document, content: versionContent };
       setDocument(updatedDocument);
       await localforage.setItem(id, updatedDocument);
-      // No need to save a new version when reverting, as it's a historical state
     }
+  };
+
+  const handleReturnToDashboard = () => {
+    navigate('/');
   };
 
   if (!document) {
@@ -95,6 +107,22 @@ const EditorPage = () => {
           }}
           className="bg-gray-800 text-white text-2xl font-bold focus:outline-none w-full"
         />
+        <div className="flex items-center space-x-4">
+          <select
+            value={language}
+            onChange={handleLanguageChange}
+            className="bg-gray-700 text-white py-2 px-3 rounded focus:outline-none"
+          >
+            <option value="javascript">JavaScript</option>
+            <option value="python">Python</option>
+          </select>
+          <button
+            onClick={handleReturnToDashboard}
+            className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
+          >
+            Return to Dashboard
+          </button>
+        </div>
       </div>
       <div className="flex flex-grow">
         <div className="w-3/4">
@@ -102,6 +130,7 @@ const EditorPage = () => {
             height="100%"
             theme="vs-dark"
             value={content}
+            language={language} // Set language dynamically
             onChange={handleEditorChange}
             onMount={(editor) => (editorRef.current = editor)}
           />
