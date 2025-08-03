@@ -16,6 +16,7 @@ import {
 } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { mamash } from "./lang/mamash";
 
 // Minimal base extensions akin to basicSetup but slimmer and explicit
 const baseExtensions: Extension[] = [
@@ -28,6 +29,8 @@ const baseExtensions: Extension[] = [
   syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
   highlightActiveLine(),
   keymap.of([...defaultKeymap, ...searchKeymap, ...historyKeymap]),
+  // Enable our custom MAMASH highlight-only extension
+  mamash()
 ];
 
 type DirectionMode = "ltr" | "rtl" | "auto";
@@ -55,7 +58,6 @@ const dirCompartment = new Compartment();
 const baseCompartment = new Compartment();
 
 // Preferred way to set direction in CM6 is via EditorView.contentAttributes
-// This places dir on the editable content element for correct bidi layout.
 function dirAttributesFor(mode: DirectionMode) {
   return EditorView.contentAttributes.of((view) => {
     const effectiveDir = getEffectiveDirFromState(view.state, mode);
@@ -83,7 +85,7 @@ function hasStrongRTL(text: string): boolean {
 }
 
 // Placeholder text includes Hebrew sample hint
-const initialPlaceholder = "Start typing… You can toggle RTL for Hebrew (עברית).";
+const initialPlaceholder = "Start typing MAMASH… Statements end with '.' · Keywords: אם, אזי, אחרת, לכל, יהא, שוה, גדול, קטן.";
 
 // Initial extensions bound to compartments
 const view = new EditorView({
@@ -97,7 +99,7 @@ const view = new EditorView({
       EditorView.updateListener.of((update) => {
         if (update.docChanged && dirMode === "auto") {
           const current = getEffectiveDirFromState(update.state, dirMode);
-          setDirectionStatus(current);
+          setDirectionStatus(current.toUpperCase());
           // Recompute dir attributes for AUTO based on new content
           view.dispatch({
             effects: dirCompartment.reconfigure(dirAttributesFor(dirMode)),
@@ -132,9 +134,12 @@ themeToggle.addEventListener("click", () => {
 
 insertHebrewBtn.addEventListener("click", () => {
   const hebrewSample = [
-    "זהו טקסט לדוגמה בעברית.",
-    "ניתן לערוך, למחוק ולהוסיף שורות חדשות.",
-    "Tip: You can mix English and עברית in the same document.",
+    "יהא x שוה 5.",
+    "יהא y שוה 3.",
+    "אם x גדול y אזי יהא z שוה x + y. אחרת יהא z שוה x - y.",
+    "לכל i (1 + 2 * 3).",
+    "// ניתן לערבב אנגלית ועברית:",
+    "Tip: Mixed English and עברית supported."
   ].join("\n");
   view.dispatch({
     changes: { from: 0, to: view.state.doc.length, insert: hebrewSample },
