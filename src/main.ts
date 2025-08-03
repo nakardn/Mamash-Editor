@@ -1,13 +1,24 @@
-import { EditorState } from "@codemirror/state";
-import { EditorView, keymap, highlightSpecialChars, drawSelection, highlightActiveLine, lineNumbers, placeholder } from "@codemirror/view";
-import { history, historyKeymap } from "@codemirror/commands";
-import { defaultHighlightStyle, indentOnInput, syntaxHighlighting } from "@codemirror/language";
+import { EditorState, Extension, Compartment } from "@codemirror/state";
+import {
+  EditorView,
+  keymap,
+  highlightSpecialChars,
+  drawSelection,
+  highlightActiveLine,
+  lineNumbers,
+  placeholder,
+} from "@codemirror/view";
+import { history, historyKeymap, defaultKeymap } from "@codemirror/commands";
+import {
+  defaultHighlightStyle,
+  indentOnInput,
+  syntaxHighlighting,
+} from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
-import { defaultKeymap } from "@codemirror/commands";
 import { oneDark } from "@codemirror/theme-one-dark";
 
 // Minimal base extensions akin to basicSetup but slimmer and explicit
-const baseExtensions = [
+const baseExtensions: Extension[] = [
   lineNumbers(),
   highlightSpecialChars(),
   history(),
@@ -16,11 +27,7 @@ const baseExtensions = [
   indentOnInput(),
   syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
   highlightActiveLine(),
-  keymap.of([
-    ...defaultKeymap,
-    ...searchKeymap,
-    ...historyKeymap,
-  ]),
+  keymap.of([...defaultKeymap, ...searchKeymap, ...historyKeymap]),
 ];
 
 type DirectionMode = "ltr" | "rtl" | "auto";
@@ -42,35 +49,35 @@ let isDark = false;
 // Direction state
 let dirMode: DirectionMode = "ltr";
 
-// EditorView theme toggles
-const lightTheme = EditorView.theme({}, { dark: false }); // default light
-const darkTheme = oneDark;
+// Compartments to reconfigure editor cleanly
+const themeCompartment = new Compartment();
+const dirCompartment = new Compartment();
+const baseCompartment = new Compartment();
 
-// Direction attribute facet
-const dirFacet = EditorView.editorAttributes.of((view) => {
-  // Apply dir on the root editor DOM
-  const effectiveDir = getEffectiveDir(view);
-  return { class: `cm-dir-${effectiveDir}`, "aria-bidi": "plaintext", dir: effectiveDir };
-});
+// Preferred way to set direction in CM6 is via EditorView.contentAttributes
+// This places dir on the editable content element for correct bidi layout.
+function dirAttributesFor(mode: DirectionMode) {
+  return EditorView.contentAttributes.of((view) => {
+    const effectiveDir = getEffectiveDirFromState(view.state, mode);
+    return { dir: effectiveDir, class: `cm-dir-${effectiveDir}` };
+  });
+}
 
 // Compute effective direction based on mode and content
-function getEffectiveDir(view: EditorView): "ltr" | "rtl" {
-  if (dirMode === "ltr" || dirMode === "rtl") return dirMode;
-  // Auto mode: inspect first non-empty line for strong RTL characters (Hebrew/Arabic ranges)
-  const doc = view.state.doc;
-  for (let i = 1; i <= doc.lines; i++) {
-    const line = doc.line(i).text.trim();
+function getEffectiveDirFromState(state: EditorState, mode: DirectionMode): "ltr" | "rtl" {
+  if (mode === "ltr" || mode === "rtl") return mode;
+  // Auto mode: inspect first non-empty line for strong RTL characters (Hebrew/Arabic)
+  for (let i = 1; i <= state.doc.lines; i++) {
+    const line = state.doc.line(i).text.trim();
     if (!line) continue;
     if (hasStrongRTL(line)) return "rtl";
     return "ltr";
   }
-  // empty doc defaults to LTR
   return "ltr";
 }
 
 function hasStrongRTL(text: string): boolean {
-  // Hebrew, Arabic, Syriac, Thaana, NKo, Samaritan, Mandaic, Arabic Extended-A/B, Hebrew marks
-  // Basic check for Hebrew (0590–05FF) and Arabic (0600–06FF) is enough for this app
+  // Basic check for Hebrew (0590–05FF) and Arabic (0600–06FF)
   const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF]/;
   return rtlRegex.test(text);
 }
@@ -78,56 +85,40 @@ function hasStrongRTL(text: string): boolean {
 // Placeholder text includes Hebrew sample hint
 const initialPlaceholder = "Start typing… You can toggle RTL for Hebrew (עברית).";
 
-// Build initial state
-let state = EditorState.create({
-  doc: "",
-  extensions: [
-    baseExtensions,
-    placeholder(initialPlaceholder),
-    dirFacet,
-    EditorView.updateListener.of((update) => {
-      if (update.docChanged && dirMode === "auto") {
-        // Update status on content changes in auto mode
-        const current = getEffectiveDir(view);
-        setDirectionStatus(current);
-        // Update dir attribute live
-        view.dispatch({
-          effects: EditorView.reconfigure.of([
-            ...coreExtensions(),
-          ]),
-        });
-      }
-    }),
-    ...coreExtensions(),
-  ],
-});
-
-// Core extensions recomputed when theme/dir change
-function coreExtensions() {
-  return [
-    dirFacet,
-    isDark ? darkTheme : lightTheme,
-    EditorView.domEventHandlers({
-      // Ensure editor inherits document font features (handled via CSS)
-    }),
-  ];
-}
-
-// Create the editor view
+// Initial extensions bound to compartments
 const view = new EditorView({
-  state,
+  state: EditorState.create({
+    doc: "",
+    extensions: [
+      baseCompartment.of([...baseExtensions, placeholder(initialPlaceholder)]),
+      dirCompartment.of(dirAttributesFor(dirMode)),
+      themeCompartment.of(EditorView.theme({}, { dark: false })),
+      // Sync status in auto mode
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged && dirMode === "auto") {
+          const current = getEffectiveDirFromState(update.state, dirMode);
+          setDirectionStatus(current);
+          // Recompute dir attributes for AUTO based on new content
+          view.dispatch({
+            effects: dirCompartment.reconfigure(dirAttributesFor(dirMode)),
+          });
+        }
+      }),
+    ],
+  }),
   parent: editorHost,
 });
 
-// Status initialization
-setDirectionStatus("ltr");
+// Initialize UI state
+setDirectionStatus("LTR");
 setThemeStatus();
+document.documentElement.dataset.theme = "light";
 
 // UI handlers
 directionSelect.addEventListener("change", () => {
   dirMode = directionSelect.value as DirectionMode;
-  const effective = getEffectiveDir(view);
-  setDirectionStatus(effective);
+  const effective = getEffectiveDirFromState(view.state, dirMode);
+  setDirectionStatus(effective.toUpperCase());
   reconfigureEditor();
 });
 
@@ -150,24 +141,25 @@ insertHebrewBtn.addEventListener("click", () => {
     selection: { anchor: hebrewSample.length },
   });
   if (dirMode === "auto") {
-    setDirectionStatus(getEffectiveDir(view));
+    setDirectionStatus(getEffectiveDirFromState(view.state, dirMode).toUpperCase());
     reconfigureEditor();
   }
 });
 
 // Helpers
 function reconfigureEditor() {
+  const themeExt = isDark ? oneDark : EditorView.theme({}, { dark: false });
   view.dispatch({
-    effects: EditorView.reconfigure.of([
-      ...baseExtensions,
-      placeholder(initialPlaceholder),
-      ...coreExtensions(),
-    ]),
+    effects: [
+      themeCompartment.reconfigure(themeExt),
+      dirCompartment.reconfigure(dirAttributesFor(dirMode)),
+      baseCompartment.reconfigure([...baseExtensions, placeholder(initialPlaceholder)]),
+    ],
   });
 }
 
-function setDirectionStatus(current: "ltr" | "rtl") {
-  statusDirection.textContent = `Direction: ${current.toUpperCase()}`;
+function setDirectionStatus(text: string) {
+  statusDirection.textContent = `Direction: ${text}`;
 }
 
 function setThemeStatus() {
