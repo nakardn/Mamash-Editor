@@ -47,21 +47,35 @@ if (!editorHost) {
 }
 
 // Theme state
-let isDark = false;
+let isDark = true;
 
 // Direction state
-let dirMode: DirectionMode = "ltr";
+let dirMode: DirectionMode = "rtl";
 
 // Compartments to reconfigure editor cleanly
 const themeCompartment = new Compartment();
 const dirCompartment = new Compartment();
 const baseCompartment = new Compartment();
+// New: editor-level direction attributes (so gutters align with content)
+const editorDirCompartment = new Compartment();
 
 // Preferred way to set direction in CM6 is via EditorView.contentAttributes
+// Also set editor-level attributes so gutter placement follows direction.
 function dirAttributesFor(mode: DirectionMode) {
   return EditorView.contentAttributes.of((view) => {
     const effectiveDir = getEffectiveDirFromState(view.state, mode);
     return { dir: effectiveDir, class: `cm-dir-${effectiveDir}` };
+  });
+}
+function editorDirAttributesFor(mode: DirectionMode) {
+  return EditorView.editorAttributes.of((view) => {
+    const effectiveDir = getEffectiveDirFromState(view.state, mode);
+    // Place gutter on the right only when explicitly RTL; otherwise keep on the left.
+    const gutterSide = effectiveDir === "rtl" ? "right" : "left";
+    return {
+      dir: effectiveDir,
+      class: `cm-root-dir-${effectiveDir} cm-gutter-${gutterSide}`
+    };
   });
 }
 
@@ -94,7 +108,8 @@ const view = new EditorView({
     extensions: [
       baseCompartment.of([...baseExtensions, placeholder(initialPlaceholder)]),
       dirCompartment.of(dirAttributesFor(dirMode)),
-      themeCompartment.of(EditorView.theme({}, { dark: false })),
+      editorDirCompartment.of(editorDirAttributesFor(dirMode)),
+      themeCompartment.of(oneDark),
       // Sync status in auto mode
       EditorView.updateListener.of((update) => {
         if (update.docChanged && dirMode === "auto") {
@@ -112,9 +127,9 @@ const view = new EditorView({
 });
 
 // Initialize UI state
-setDirectionStatus("LTR");
+setDirectionStatus("RTL");
 setThemeStatus();
-document.documentElement.dataset.theme = "light";
+document.documentElement.dataset.theme = "dark";
 
 // UI handlers
 directionSelect.addEventListener("change", () => {
@@ -154,11 +169,16 @@ insertHebrewBtn.addEventListener("click", () => {
 // Helpers
 function reconfigureEditor() {
   const themeExt = isDark ? oneDark : EditorView.theme({}, { dark: false });
+
+  // Always keep original baseExtensions including lineNumbers()
+  const newBase = [...baseExtensions, placeholder(initialPlaceholder)];
+
   view.dispatch({
     effects: [
       themeCompartment.reconfigure(themeExt),
       dirCompartment.reconfigure(dirAttributesFor(dirMode)),
-      baseCompartment.reconfigure([...baseExtensions, placeholder(initialPlaceholder)]),
+      editorDirCompartment.reconfigure(editorDirAttributesFor(dirMode)),
+      baseCompartment.reconfigure(newBase),
     ],
   });
 }

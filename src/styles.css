@@ -173,6 +173,7 @@ select:focus,
   height: 100%;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Noto Sans Hebrew", monospace;
   font-size: 14px;
+  display: flex; /* ensure gutters/content can reorder with direction */
 }
 
 .cm-content {
@@ -182,6 +183,24 @@ select:focus,
 /* Visual hinting for direction */
 .cm-dir-ltr .cm-content { direction: ltr; }
 .cm-dir-rtl .cm-content { direction: rtl; }
+
+/* Mirror gutter placement with root direction set from editor attributes */
+.cm-editor.cm-root-dir-ltr { direction: ltr; }
+.cm-editor.cm-root-dir-rtl { direction: rtl; }
+
+/* Gutters default appearance */
+.cm-editor .cm-gutters {
+  background: transparent;
+  border-right: 1px solid var(--border);
+}
+
+/* LTR: gutters on the left (default) */
+.cm-editor.cm-root-dir-ltr .cm-gutters { order: 1; border-right: 1px solid var(--border); border-left: none; }
+.cm-editor.cm-root-dir-ltr .cm-content { order: 2; }
+
+/* RTL: move gutters to the right */
+.cm-editor.cm-root-dir-rtl .cm-gutters { order: 2; border-right: none; border-left: 1px solid var(--border); }
+.cm-editor.cm-root-dir-rtl .cm-content { order: 1; }
 
 /* Status bar */
 .statusbar {
