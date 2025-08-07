@@ -28,7 +28,10 @@ function lexToRanges(text: string): RangeNode[] {
   for (const tok of tokenize(text)) {
     switch (tok.type) {
       case "WS":
-        // ignore
+        // ignore whitespace
+        break;
+      case "Comment":
+        nodes.push({ type: "Comment", from: tok.from, to: tok.to });
         break;
       case "Keyword":
         nodes.push({ type: "Keyword", from: tok.from, to: tok.to });
