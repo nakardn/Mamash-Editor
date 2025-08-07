@@ -1,0 +1,1 @@
+{"root":["./src/main.ts","./src/lang/mamash.ts","./src/lang/tokenizer.ts","./src/lint/engine.ts","./src/lint/sourcetext.ts","./src/lint/types.ts","./src/ui/codemirror/mamashlint.ts"],"version":"5.9.2"}
