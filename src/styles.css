@@ -180,13 +180,14 @@ select:focus,
   caret-color: auto;
 }
 
-/* Visual hinting for direction */
-.cm-dir-ltr .cm-content { direction: ltr; }
-.cm-dir-rtl .cm-content { direction: rtl; }
+/* Visual hinting for direction via cm-editor classes */
+.cm-editor.dir-ltr .cm-content { direction: ltr; }
+.cm-editor.dir-rtl .cm-content { direction: rtl; }
 
-/* Mirror gutter placement with root direction set from editor attributes */
-.cm-editor.cm-root-dir-ltr { direction: ltr; }
-.cm-editor.cm-root-dir-rtl { direction: rtl; }
+/* Keep gutter on right side regardless of document direction */
+.cm-editor { direction: ltr; }            /* ensures gutters render on the right */
+.cm-gutters { direction: ltr; }           /* force gutter block-direction to LTR */
+.cm-lineNumbers { direction: ltr; }       /* extra safety for the numbers column */
 
 /* Gutters default appearance */
 .cm-editor .cm-gutters {
@@ -195,12 +196,12 @@ select:focus,
 }
 
 /* LTR: gutters on the left (default) */
-.cm-editor.cm-root-dir-ltr .cm-gutters { order: 1; border-right: 1px solid var(--border); border-left: none; }
-.cm-editor.cm-root-dir-ltr .cm-content { order: 2; }
+.cm-editor.dir-ltr .cm-gutters { order: 1; border-right: 1px solid var(--border); border-left: none; }
+.cm-editor.dir-ltr .cm-content { order: 2; }
 
 /* RTL: move gutters to the right */
-.cm-editor.cm-root-dir-rtl .cm-gutters { order: 2; border-right: none; border-left: 1px solid var(--border); }
-.cm-editor.cm-root-dir-rtl .cm-content { order: 1; }
+.cm-editor.dir-rtl .cm-gutters { order: 2; border-right: none; border-left: 1px solid var(--border); }
+.cm-editor.dir-rtl .cm-content { order: 1; }
 
 /* Status bar */
 .statusbar {
