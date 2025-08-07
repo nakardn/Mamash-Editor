@@ -73,7 +73,7 @@ function* tokenize(s: string): Generator<Tok> {
     }
 
     // Operators
-    if ("+-*/".includes(ch)) {
+    if ("+-*/=:".includes(ch)) {
       yield { type: "Op", value: ch, from: i, to: i + 1 };
       i++;
       continue;
@@ -209,13 +209,36 @@ const mamashHighlighter = ViewPlugin.fromClass(
 );
 
 const mamashTheme = EditorView.theme({
-  ".cm-mamash-keyword": { color: "#ff0066", fontWeight: "bold", textDecoration: "underline" },
-  ".cm-mamash-ident": { color: "#00ccff" },
-  ".cm-mamash-number": { color: "#ffaa00" },
-  ".cm-mamash-operator": { color: "#66ff66" },
-  ".cm-mamash-paren": { color: "#ff66ff" },
-  ".cm-mamash-punct": { color: "#ff0000" },
-  ".cm-mamash-invalid": { color: "#ffffff", backgroundColor: "#ff0000" },
+  /* Cohesive, app-themed Mamash syntax colors using existing CSS variables */
+  ".cm-mamash-keyword": {
+    color: "var(--brand)",
+    fontWeight: "600",
+    textDecoration: "none"
+  },
+  ".cm-mamash-ident": {
+    color: "color-mix(in oklab, var(--text), var(--muted) 35%)"
+  },
+  ".cm-mamash-number": {
+    color: "var(--accent)",
+    fontWeight: "500"
+  },
+  ".cm-mamash-operator": {
+    /* Make operators subtler; '=' and ':' often serve as separators/assignments */
+    color: "color-mix(in oklab, var(--muted), var(--text) 10%)",
+    fontWeight: "400"
+  },
+  ".cm-mamash-paren": {
+    color: "color-mix(in oklab, var(--muted), var(--text) 10%)"
+  },
+  ".cm-mamash-punct": {
+    /* Periods end statements; keep gentle accent */
+    color: "color-mix(in oklab, var(--accent), var(--text) 40%)"
+  },
+  ".cm-mamash-invalid": {
+    color: "var(--text)",
+    backgroundColor: "color-mix(in oklab, #ff5555, var(--surface) 35%)",
+    borderRadius: "4px"
+  }
 });
 
 // Provide language-like editor behavior (direction, word chars, brackets, comments)

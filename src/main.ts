@@ -61,12 +61,13 @@ const editorDirCompartment = new Compartment();
 // Direction attributes now handled via classes on the cm-editor element (.cm-editor.dir-rtl/.dir-ltr)
 // Keep minimal attributes without extra dir/class to avoid conflicts.
 function dirAttributesFor(_mode: Direction) {
-  // No dir/class on content; CSS uses .cm-editor dir-* classes.
+  // Keep content attributes minimal; direction handled via editor root class.
   return EditorView.contentAttributes.of({});
 }
-function editorDirAttributesFor(_mode: Direction) {
-  // No dir/class on editor root via attributes; we'll toggle classes on the actual DOM node.
-  return EditorView.editorAttributes.of({});
+function editorDirAttributesFor(mode: Direction) {
+  // Provide stable class on the editor root managed by CM state (persists across focus/reconfigure)
+  const cls = mode === "rtl" ? "dir-rtl" : "dir-ltr";
+  return EditorView.editorAttributes.of({ class: cls });
 }
 
 // Placeholder text
@@ -90,7 +91,7 @@ const view = new EditorView({
 setDirectionStatus(dirMode.toUpperCase());
 setThemeStatus();
 document.documentElement.dataset.theme = "dark";
-// Initialize cm-editor direction class
+// Initialize cm-editor direction class (through editor attributes compartment)
 updateCmEditorDirection(dirMode);
 
 // UI handlers
@@ -149,9 +150,8 @@ function setThemeStatus() {
 }
 
 function updateCmEditorDirection(mode: Direction) {
-  // Ensure we target the current cm-editor element inside the host
-  const cmEl = editorHost.querySelector(".cm-editor");
-  if (!cmEl) return;
-  cmEl.classList.toggle("dir-rtl", mode === "rtl");
-  cmEl.classList.toggle("dir-ltr", mode === "ltr");
+  // Reconfigure the editor root class via compartment so it survives DOM replacements/focus
+  view.dispatch({
+    effects: editorDirCompartment.reconfigure(editorDirAttributesFor(mode)),
+  });
 }
