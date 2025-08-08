@@ -1,8 +1,13 @@
 /**
  * Shared tokenizer for Mamash language.
  * Centralizes tokenization so both highlighter and linter use identical logic.
- */
- 
+**/
+
+type Interval = {
+  from: number;
+  to: number;
+};
+
 export type Tok =
   | { type: "Keyword"; value: string; from: number; to: number }
   | { type: "Ident"; value: string; from: number; to: number }
@@ -15,8 +20,8 @@ export type Tok =
   | { type: "Comment"; value: string; from: number; to: number }
   | { type: "Unknown"; value: string; from: number; to: number };
  
-export const hebrewIdStart = /[\u0590-\u05FFA-Za-z_]/;
-export const hebrewIdPart = /[\u0590-\u05FFA-Za-z0-9_]/;
+export const hebrewIdStart = /[\u0590-\u05FF_]/;
+export const hebrewIdPart = /[\u0590-\u05FF0-9_]/;
  
 export const KEYWORDS = new Set([
   "אם", // if
@@ -31,27 +36,74 @@ export const KEYWORDS = new Set([
  
 export function* tokenize(s: string): Generator<Tok> {
   let i = 0;
+  let commentCount = 0;
+  let commentStart = 0;
+let commentStack : Interval[] = [];
+  const len1 = s.length;
+  while (i < len1) {
+    const ch = s[i];
+
+
+    if (ch === "/" && i + 1 < len1 && s[i + 1] === "*") {
+      commentCount++;
+      if (commentStart === 0 && commentCount === 1) {
+        commentStart = i;
+      }
+      i++;
+    } else if (ch === "*" && i + 1 < len1 && s[i + 1] === "/") {
+      commentCount--;
+      if (commentCount === 0) {
+        commentStack.push({from: commentStart, to: i + 2});
+        commentStart = 0;
+      } else if (commentCount < 0) {
+        commentStack.push({from: commentStart, to: i + 2});
+        commentCount = 0; // reset to avoid further issues
+        commentStart = 0;
+      }
+      i++;
+    }
+  i++;
+  }
+
+  if (commentStack.length > 0){
+    // Create a sorted copy
+    const sortedIntervals = [...commentStack].sort((a, b) => a.from - b.from);
+    
+    // Merge overlapping intervals
+    const mergedIntervals: Interval[] = [sortedIntervals[0]];
+    for (let i = 1; i < sortedIntervals.length; i++) {
+      const lastMerged = mergedIntervals[mergedIntervals.length - 1];
+      const current = sortedIntervals[i];
+      if (current.from < lastMerged.to) {
+        // Overlap detected, merge them by extending the 'to'
+        lastMerged.to = Math.max(lastMerged.to, current.to);
+      } else {
+        // No overlap, just add the new interval
+        mergedIntervals.push(current);
+      }
+    }
+    commentStack = mergedIntervals;
+  } 
+
+
+  i = 0;
+  while (commentStack.length != 0 && i < commentStack.length) {
+    const currentInterval = commentStack[i];
+    yield { type: "Comment", value: s.slice(currentInterval.from, currentInterval.to), from: currentInterval.from, to: currentInterval.to };
+    i++;
+  }
+
+  i = 0;
+  let intervalIndex = 0;
   const len = s.length;
   while (i < len) {
     const ch = s[i];
 
-    // Block comment /* ... */
-    if (ch === "/" && i + 1 < len && s[i + 1] === "*") {
-      let j = i + 2;
-      while (j + 1 < len && !(s[j] === "*" && s[j + 1] === "/")) j++;
-      if (j + 1 < len) {
-        // Found closing */
-        j += 2;
-        yield { type: "Comment", value: s.slice(i, j), from: i, to: j };
-        i = j;
-        continue;
-      } else {
-        // Unterminated comment consumes to end; still treated as Comment so linter ignores it
-        const to = len;
-        yield { type: "Comment", value: s.slice(i, to), from: i, to };
-        i = to;
-        continue;
-      }
+    const currentInterval = commentStack[intervalIndex];
+    if (currentInterval && i >= currentInterval.from) {
+      i = currentInterval.to;
+      intervalIndex++;
+      continue;
     }
  
     // Whitespace
@@ -98,7 +150,7 @@ export function* tokenize(s: string): Generator<Tok> {
       continue;
     }
  
-    // Identifier (Hebrew or Latin letters + digits/_)
+    // Identifier (Hebrew letters + digits/_)
     if (hebrewIdStart.test(ch)) {
       let j = i + 1;
       while (j < len && hebrewIdPart.test(s[j])) j++;
