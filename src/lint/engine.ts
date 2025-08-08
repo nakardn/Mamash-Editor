@@ -1,5 +1,14 @@
 import { Diagnostic, LintResult } from "./types";
-import { Tok, tokenize } from "../lang/tokenizer";
+import { Tok, KEYWORDS, tokenize } from "../lang/tokenizer";
+
+export const STATEMENTS = [
+  ["יהא", "Ident", "שוה", "Number"]
+];
+
+export const TYPES = [
+  "Keyword", "Ident", "Number", "Op", "Period", "ParenOpen", "ParenClose", "WS", "Comment", "Unknown"
+];
+
 
 export function lintText(text: string): LintResult {
   const diagnostics: Diagnostic[] = [];
@@ -24,6 +33,7 @@ export function lintText(text: string): LintResult {
 
   const tokens: Tok[] = [];
   for (const tok of tokenize(text)) tokens.push(tok);
+  // console.log("Tokenized:", tokens);
 
   const prevNonIgnorable = (arr: Tok[], i: number): Tok | null => {
     for (let k = i; k >= 0; k--) {
@@ -140,6 +150,7 @@ export function lintText(text: string): LintResult {
     for (let i = b; i >= a; i--) if (tokens[i] && !isIgnorable(tokens[i])) return i;
     return -1;
   };
+  // console.log("Statement segments:", statements);
 
   for (const seg of statements) {
     if (seg.startIdx > seg.endIdx) continue; // empty segment
@@ -166,53 +177,48 @@ export function lintText(text: string): LintResult {
       continue;
     }
 
-    // Try to parse var-assign: יהא <Ident> שוה <Number>
+    let statementIdx = -1;
     let i = 0;
 
-    // 1) Expect "יהא"
     const t0 = stmt[i];
-    if (!(t0 && t0.type === "Keyword" && t0.value === "יהא")) {
+    if (t0 && t0.type === "Keyword") {
+      statementIdx = STATEMENTS.findIndex(s => s[0] === t0.value);
+      if (statementIdx === -1) {
+        const from = stmt[0].from;
+        const to = stmt[stmt.length - 1].to;  
+        push(from, to, `Unknown statement "${t0.value}"`, "syntax/unknown-statement");
+        continue;
+      }
+    } else{
       const from = stmt[0].from;
       const to = stmt[stmt.length - 1].to;
       push(from, to, "Invalid statement", "syntax/invalid-statement");
       continue;
     }
     i++;
+    
+    for (; i < STATEMENTS[statementIdx].length; i++) {
+      const expectedType = STATEMENTS[statementIdx][i];
+      const tok = stmt[i];
 
-    // 2) Expect Ident
-    const t1 = stmt[i];
-    if (!(t1 && t1.type === "Ident")) {
-      const errTok = t1 ?? t0;
-      push(errTok.from, errTok.to, "Expected identifier after 'יהא'", "syntax/var-assign-expected-ident");
-      continue;
-    }
-    i++;
+      if (!tok || isIgnorable(tok)) {
+        push(t0.from, t0.to, `Expected ${expectedType} but found nothing`, "syntax/expected-token");
+        break;
+      }
 
-    // 3) Expect Keyword "שוה"
-    const t2 = stmt[i];
-    if (!(t2 && t2.type === "Keyword" && t2.value === "שוה")) {
-      const errTok = t2 ?? stmt[i - 1];
-      push(errTok.from, errTok.to, "Expected keyword 'שוה' after identifier", "syntax/var-assign-expected-shaveh");
-      continue;
+      if (expectedType === "Number" && tok.type !== "Number") {
+        push(tok.from, tok.to, `Expected number but found ${tok.type}`, "syntax/expected-number");
+        break;
+      } else if (expectedType === "Ident" && tok.type !== "Ident") {
+        push(tok.from, tok.to, `Expected identifier but found ${tok.type}`, "syntax/expected-identifier");
+        break;
+      } else if (!TYPES.includes(expectedType) && (tok.type !== "Keyword" || tok.value !== expectedType)) {
+        const foundValue = 'value' in tok ? tok.value : `a ${tok.type} token`;
+        push(tok.from, tok.to, `Expected ${expectedType} but found ${foundValue}`, "syntax/expected-token");
+        break;
+      }
     }
-    i++;
 
-    // 4) Expect Number
-    const t3 = stmt[i];
-    if (!(t3 && t3.type === "Number")) {
-      const errTok = t3 ?? stmt[i - 1];
-      push(errTok.from, errTok.to, "Expected number after 'שוה'", "syntax/var-assign-expected-number");
-      continue;
-    }
-    i++;
-
-    // 5) No extra tokens allowed in this minimal phase
-    if (i < stmt.length) {
-      const extraFrom = stmt[i].from;
-      const extraTo = stmt[stmt.length - 1].to;
-      push(extraFrom, extraTo, "Unexpected extra tokens after assignment", "syntax/statement-extra-tokens");
-      continue;
-    }
   }
 
   return { diagnostics };
