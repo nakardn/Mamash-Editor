@@ -163,20 +163,6 @@ export function lintText(text: string): LintResult {
     const stmt: Tok[] = [];
     for (let i = s; i <= e; i++) if (!isIgnorable(tokens[i])) stmt.push(tokens[i]);
 
-    // Detect merged statements without a period: if more than one "יהא" appears
-    // const indicesOfYeye = stmt
-    //   .map((t, i) => (t.type === "Keyword" && t.value === "יהא" ? i : -1))
-    //   .filter(i => i >= 0);
-    // if (indicesOfYeye.length > 1) {
-    //   // Place the error at the boundary before the second "יהא"
-    //   const secondIdx = indicesOfYeye[1];
-    //   const prevTok = stmt[secondIdx - 1] ?? stmt[0];
-    //   const from = prevTok.to;
-    //   const to = Math.min(from + 1, prevTok.to);
-    //   push(from, to, "Missing period between statements", "syntax/missing-period-between-statements");
-    //   continue;
-    // }
-
     let statementIdx = -1;
     let i = 0;
 
