@@ -230,3 +230,7 @@ select:focus,
   border-top: 1px solid var(--border);
   background: var(--surface);
 }
+
+.cm-line {
+  unicode-bidi: bidi-override;
+}

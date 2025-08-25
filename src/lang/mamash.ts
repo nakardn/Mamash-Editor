@@ -5,7 +5,7 @@ import { mamashLintPlugin, mamashLintStyles, mamashLintTooltip } from "../ui/cod
 
 /**
  * MAMASH: a minimal Hebrew-like language demo for CodeMirror 6.
- * - Statements end with a period '.'
+ * - Statements end with a Dot '.'
  * - Hebrew keywords: אם, אזי, אחרת, לכל, יהא, שוה, גדול, קטן
  * - Identifiers (Hebrew or Latin), numbers, + - * /
  *
@@ -51,8 +51,8 @@ function lexToRanges(text: string): RangeNode[] {
       case "ParenClose":
         nodes.push({ type: "ParenClose", from: tok.from, to: tok.to });
         break;
-      case "Period":
-        nodes.push({ type: "Period", from: tok.from, to: tok.to });
+      case "Dot":
+        nodes.push({ type: "Dot", from: tok.from, to: tok.to });
         break;
       case "Unknown":
         nodes.push({ type: "Unknown", from: tok.from, to: tok.to });
@@ -106,7 +106,7 @@ const mamashHighlighter = ViewPlugin.fromClass(
           case "Operator": cls = "cm-mamash-operator"; break;
           case "ParenOpen":
           case "ParenClose": cls = "cm-mamash-paren"; break;
-          case "Period": cls = "cm-mamash-punct"; break;
+          case "Dot": cls = "cm-mamash-punct"; break;
           case "Unknown": cls = "cm-mamash-invalid"; break;
         }
         if (cls) decos.push(Decoration.mark({ class: cls }).range(r.from, r.to));
@@ -142,7 +142,7 @@ const mamashTheme = EditorView.theme({
     color: "color-mix(in oklab, var(--muted), var(--text) 10%)"
   },
   ".cm-mamash-punct": {
-    /* Periods end statements; keep gentle accent */
+    /* Dots end statements; keep gentle accent */
     color: "color-mix(in oklab, var(--accent), var(--text) 40%)"
   },
   ".cm-mamash-invalid": {

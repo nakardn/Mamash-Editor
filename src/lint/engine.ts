@@ -6,7 +6,7 @@ export const STATEMENTS = [
 ];
 
 export const TYPES = [
-  "Keyword", "Ident", "Number", "Op", "Period", "ParenOpen", "ParenClose", "WS", "Comment", "Unknown"
+  "Keyword", "Ident", "Number", "Op", "Dot", "ParenOpen", "ParenClose", "WS", "Comment", "Unknown"
 ];
 
 
@@ -70,15 +70,15 @@ export function lintText(text: string): LintResult {
       }
     }
 
-    // Period checks: redundant consecutive periods
-    if (tok.type === "Period") {
-      if (lastNonWsTok && lastNonWsTok.type === "Period") {
-        push(tok.from, tok.to, "Redundant period", "syntax/redundant-period");
+    // Dot checks: redundant consecutive Dots
+    if (tok.type === "Dot") {
+      if (lastNonWsTok && lastNonWsTok.type === "Dot") {
+        push(tok.from, tok.to, "Redundant Dot", "syntax/redundant-Dot");
       }
       // statement boundary
       stmtHasContent = false;
     } else {
-      // Not a period, counts as content for current statement
+      // Not a Dot, counts as content for current statement
       if (!isIgnorable(tok)) stmtHasContent = true;
     }
 
@@ -111,7 +111,7 @@ export function lintText(text: string): LintResult {
       }
     }
 
-    // Update last non-WS token (keep behavior for period redundancy detection)
+    // Update last non-WS token (keep behavior for Dot redundancy detection)
     if (tok.type !== "WS") lastNonWsTok = tok;
     lastTok = tok;
   }
@@ -122,20 +122,20 @@ export function lintText(text: string): LintResult {
     push(pos, pos + 1, "Unmatched opening parenthesis", "syntax/unmatched-open-paren");
   }
 
-  // Missing trailing period for the last statement (if it had content and didn't end with a period)
-  if (stmtHasContent && lastNonWsTok && lastNonWsTok.type !== "Period") {
+  // Missing trailing Dot for the last statement (if it had content and didn't end with a Dot)
+  if (stmtHasContent && lastNonWsTok && lastNonWsTok.type !== "Dot") {
     const end = lastNonWsTok.to;
-    push(Math.max(0, end - 1), end, "Missing period at end of statement", "syntax/missing-period");
+    push(Math.max(0, end - 1), end, "Missing Dot at end of statement", "syntax/missing-Dot");
   }
 
   // Pass 2: statement-level validation for the basic var setting form:
   // "יהא <Ident> שוה <Number> ."
-  // Segment by Period and validate, ignoring WS and Comment tokens for structure.
+  // Segment by Dot and validate, ignoring WS and Comment tokens for structure.
   const statements: { startIdx: number; endIdx: number }[] = [];
   let start = 0;
   for (let i = 0; i <= tokens.length; i++) {
     const t = tokens[i];
-    if (!t || t.type === "Period") {
+    if (!t || t.type === "Dot") {
       statements.push({ startIdx: start, endIdx: i - 1 });
       start = i + 1;
     }
@@ -206,7 +206,7 @@ export function lintText(text: string): LintResult {
     }
 
     if (stmt[i] !== undefined) {
-      push(stmt[i].from, stmt[stmt.length - 1].to, "Missing period at end of statement", "syntax/missing-period");
+      push(stmt[i].from, stmt[stmt.length - 1].to, "Missing Dot at end of statement", "syntax/missing-Dot");
     }
 
   }

@@ -112,12 +112,8 @@ themeToggle.addEventListener("click", () => {
 
 insertHebrewBtn.addEventListener("click", () => {
   const hebrewSample = [
-    "יהא x שוה 5.",
+    "יהא בדיקה11 שוה 5.",
     "יהא y שוה 3.",
-    "אם x גדול y אזי יהא z שוה x + y. אחרת יהא z שוה x - y.",
-    "לכל i (1 + 2 * 3).",
-    "// ניתן לערבב אנגלית ועברית:",
-    "Tip: Mixed English and עברית supported.",
   ].join("\n");
   view.dispatch({
     changes: { from: 0, to: view.state.doc.length, insert: hebrewSample },

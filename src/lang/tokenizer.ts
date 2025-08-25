@@ -13,7 +13,7 @@ export type Tok =
   | { type: "Ident"; value: string; from: number; to: number }
   | { type: "Number"; value: string; from: number; to: number }
   | { type: "Op"; value: string; from: number; to: number }
-  | { type: "Period"; from: number; to: number }
+  | { type: "Dot"; from: number; to: number }
   | { type: "ParenOpen"; from: number; to: number }
   | { type: "ParenClose"; from: number; to: number }
   | { type: "WS"; value: string; from: number; to: number }
@@ -115,9 +115,9 @@ let commentStack : Interval[] = [];
       continue;
     }
  
-    // Period
+    // Dot
     if (ch === ".") {
-      yield { type: "Period", from: i, to: i + 1 };
+      yield { type: "Dot", from: i, to: i + 1 };
       i++;
       continue;
     }
